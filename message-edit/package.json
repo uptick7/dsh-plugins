@@ -1,6 +1,7 @@
 {
   "name": "@local/message-edit",
   "version": "1.5.1",
+  "license": "MIT",
   "scripts": {
     "test": "node --test *.test.js",
     "check": "node --check index.js && node --check client.js"

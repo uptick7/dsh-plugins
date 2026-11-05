@@ -38,4 +38,4 @@ DSH_ROOT=/path/to/@deepseek-ai/dsh npm test
 
 ## License
 
-No license yet — add one before publishing or accepting external contributions.
+Released under the [MIT License](LICENSE).
