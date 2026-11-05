@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Message Edit",
+    "description": "Edit a user message in the same session. The original message and all subsequent messages leave the model context; the edited text is sent again. The audit log and external tool side effects are retained."
+  }
+}

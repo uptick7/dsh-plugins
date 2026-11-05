@@ -1,0 +1,37 @@
+{
+  "name": "@local/message-edit",
+  "version": "1.5.1",
+  "scripts": {
+    "test": "node --test *.test.js",
+    "check": "node --check index.js && node --check client.js"
+  },
+  "private": true,
+  "type": "module",
+  "description": "Edit a sent user message in place: the edited text replaces the previous exchange in the same session's model context, and the session continues without a fork.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}
