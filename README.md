@@ -9,6 +9,7 @@ A collection of plugins for [DeepSeek Harness (DSH)](https://www.npmjs.com/packa
 | Plugin | Version | Description |
 |---|---|---|
 | [message-edit](message-edit/) | 1.5.1 | Edit a sent user message in place: the edited text replaces the previous exchange in the same session's model context, and the session continues without a fork. |
+| [commands-bridge](commands-bridge/) | 1.0.0 | Bridge markdown slash-commands from shared (`~/.agents/commands`), harness (`~/.dsh/commands`), and project (`<cwd>/.agents/commands`) directories into the command registry; a Settings → Commands page shows descriptions, argument hints, and enable toggles. |
 
 ## Installation
 
@@ -33,7 +34,7 @@ DSH_ROOT=/path/to/@deepseek-ai/dsh npm test
 ## Contributing
 
 - One directory per plugin, named after the plugin.
-- Each plugin must include its own `README.md`, `package.json` and tests.
+- Each plugin must include its own bilingual README (`README.md` + `README.ru.md`), `package.json` and tests.
 - Plugins should not depend on each other.
 
 ## License

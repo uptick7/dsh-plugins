@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Commands bridge",
+    "description": "Bridges markdown slash-commands from shared, harness, and project directories into the command registry."
+  }
+}
