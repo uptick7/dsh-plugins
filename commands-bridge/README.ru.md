@@ -11,7 +11,7 @@
 Установка в профиль (замените `web` на имя своего профиля), затем перезапуск host:
 
 ```sh
-dsh plugin --profile web add @uptick7/dsh-commands-bridge
+dsh plugin --profile web add -w @uptick7/dsh-commands-bridge
 ```
 
 Либо установка из веб-GUI: **Плагины** (Plugin Manager) → найти `@uptick7/dsh-commands-bridge` → установить; включите бандл, если менеджер не сделал это сам.

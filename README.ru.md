@@ -18,8 +18,8 @@
 Каждый плагин — обычный JS-пакет, опубликованный на npm; сборка TypeScript/Vite не требуется. Установите в профиль DSH (замените `web` на имя своего профиля), затем перезапустите host:
 
 ```sh
-dsh plugin --profile web add @uptick7/dsh-message-edit
-dsh plugin --profile web add @uptick7/dsh-commands-bridge
+dsh plugin --profile web add -w @uptick7/dsh-message-edit
+dsh plugin --profile web add -w @uptick7/dsh-commands-bridge
 ```
 
 Либо из веб-GUI: **Плагины** (Plugin Manager) → найти пакет по имени → установить.

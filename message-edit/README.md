@@ -18,7 +18,7 @@ Published on npm as [`@uptick7/dsh-message-edit`](https://www.npmjs.com/package/
 Install into a profile (replace `web` with your profile name), then restart the host:
 
 ```sh
-dsh plugin --profile web add @uptick7/dsh-message-edit
+dsh plugin --profile web add -w @uptick7/dsh-message-edit
 ```
 
 Or install from the web GUI: **Plugins** (Plugin Manager) → search for `@uptick7/dsh-message-edit` → install; enable the bundle if the manager does not do it automatically.
@@ -67,7 +67,7 @@ DSH_ROOT=/path/to/@deepseek-ai/dsh npm test
 
 This package ships ready-made JS entry points: there is no separate TypeScript/Vite build. If the profile references this directory (`link:`), reinstalling the package is not needed. Reload the host plugin via plugin management (if available) or restart `dsh web`, then refresh the GUI page. A single browser refresh does not guarantee that the server module is reloaded.
 
-For an npm-installed plugin, pick up a fix by updating the package in the Plugin Manager or with `dsh plugin --profile web add @uptick7/dsh-message-edit@latest`, then restart the host.
+For an npm-installed plugin, pick up a fix by updating the package in the Plugin Manager or with `dsh plugin --profile web add -w @uptick7/dsh-message-edit@latest`, then restart the host.
 
 A fix does not rewrite invalid events that a previous version may have created. Run the first check in a fresh test session.
 

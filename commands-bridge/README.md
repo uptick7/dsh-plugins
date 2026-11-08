@@ -11,7 +11,7 @@ Published on npm as [`@uptick7/dsh-commands-bridge`](https://www.npmjs.com/packa
 Install into a profile (replace `web` with your profile name), then restart the host:
 
 ```sh
-dsh plugin --profile web add @uptick7/dsh-commands-bridge
+dsh plugin --profile web add -w @uptick7/dsh-commands-bridge
 ```
 
 Or install from the web GUI: **Plugins** (Plugin Manager) → search for `@uptick7/dsh-commands-bridge` → install; enable the bundle if the manager does not do it automatically.

@@ -18,8 +18,8 @@ A collection of plugins for [DeepSeek Harness (DSH)](https://www.npmjs.com/packa
 Each plugin is a plain JS package published to npm — no TypeScript/Vite build step required. Install into a DSH profile (replace `web` with your profile name), then restart the host:
 
 ```sh
-dsh plugin --profile web add @uptick7/dsh-message-edit
-dsh plugin --profile web add @uptick7/dsh-commands-bridge
+dsh plugin --profile web add -w @uptick7/dsh-message-edit
+dsh plugin --profile web add -w @uptick7/dsh-commands-bridge
 ```
 
 Or in the web GUI: **Plugins** (Plugin Manager) → search for the package name → install.
