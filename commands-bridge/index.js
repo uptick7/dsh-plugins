@@ -412,9 +412,12 @@ export function apply(ctx, config) {
     };
   };
 
-  const webServer = ctx.get('webServer');
-  if (webServer !== undefined) {
-    ctx.effect(
+  // The webServer service may start after this plugin, so acquire it with a
+  // deferred inject (mirrors dshmarket); a synchronous ctx.get returns
+  // undefined during early activation and the routes would be skipped.
+  ctx.inject(['webServer'], (hostCtx) => {
+    const webServer = hostCtx.get('webServer');
+    hostCtx.effect(
       () =>
         webServer.register({
           kind: 'exact',
@@ -434,7 +437,7 @@ export function apply(ctx, config) {
         }),
       'commands-bridge: inventory route',
     );
-    ctx.effect(
+    hostCtx.effect(
       () =>
         webServer.register({
           kind: 'exact',
@@ -467,7 +470,7 @@ export function apply(ctx, config) {
         }),
       'commands-bridge: toggle route',
     );
-  }
+  });
 
   void requestSync();
 

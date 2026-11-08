@@ -91,6 +91,9 @@ test('bridge syncs commands, serves inventory, and persists toggles', async () =
     const ctx = {
       commands: commandCtx.commands,
       on: () => {},
+      inject: (_names, cb) => {
+        cb(ctx);
+      },
       effect: (fn, _label) => {
         fn();
         return () => {};

@@ -1,6 +1,6 @@
 {
   "name": "@uptick7/dsh-commands-bridge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "type": "module",
   "description": "Bridges markdown slash-commands from shared, harness, and project directories into the command registry, with a Settings page for discovery and toggles.",
