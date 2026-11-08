@@ -1,9 +1,0 @@
-# Submission for the awesome-dsh-plugin catalog:
-# open a PR that adds this file as data/plugins/uptick7__dsh-plugins.yml
-# in https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
-url: https://github.com/uptick7/dsh-plugins
-name: uptick7/dsh-plugins
-category: session
-description:
-  en: 'Edit a sent message in place in the same session without forking, and bridge markdown slash-commands from shared, harness and project directories into the command registry with a Settings page.'
-  zh: '在会话内原位编辑已发送消息（不 fork）；把共享、代理与项目目录中的 markdown 斜杠命令接入命令注册表，并提供设置页。'

@@ -44,12 +44,6 @@ Tests use a real DSH `Session` and the V4 codec (no model calls). DSH is resolve
 DSH_ROOT=/path/to/@deepseek-ai/dsh npm test
 ```
 
-## Releasing
-
-Both packages publish from CI: bump the plugin's `version` in its `package.json`, push a tag `<plugin>-v<version>` (for example `message-edit-v1.5.2`), and the [release workflow](.github/workflows/release.yml) runs the checks and publishes to npm with the repository's `NPM_TOKEN` secret. Publishing manually also works: an npm account with the `uptick7` scope, then `npm publish` inside the plugin directory.
-
-After the first release, consider listing the repo in the community catalog — a one-file PR to [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin#contributing) (`data/plugins/uptick7__dsh-plugins.yml`), and add the `dsh-plugin` topic to the GitHub repository so the catalog accepts it. Prepared submission files live in [catalog/](catalog/).
-
 ## Contributing
 
 - One directory per plugin, named after the plugin.

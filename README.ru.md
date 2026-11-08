@@ -44,12 +44,6 @@ npm run check   # проверка синтаксиса
 DSH_ROOT=/path/to/@deepseek-ai/dsh npm test
 ```
 
-## Релизы
-
-Оба пакета публикуются из CI: поднимите `version` в `package.json` плагина, поставьте тег `<плагин>-v<версия>` (например `message-edit-v1.5.2`) — [релиз-воркфлоу](.github/workflows/release.yml) прогонит проверки и опубликует пакет в npm с секретом `NPM_TOKEN` репозитория. Вручную тоже можно: аккаунт npm со scope `uptick7`, затем `npm publish` внутри каталога плагина.
-
-После первого релиза стоит добавить репозиторий в общественный каталог — PR из одного файла в [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin#contributing) (`data/plugins/uptick7__dsh-plugins.yml`) и topic `dsh-plugin` на GitHub-репозитории, иначе каталог не примет. Заготовки заявок лежат в [catalog/](catalog/).
-
 ## Участие в разработке
 
 - Один каталог на плагин, назван по имени плагина.
