@@ -1,13 +1,37 @@
 {
-  "name": "@local/commands-bridge",
+  "name": "@uptick7/dsh-commands-bridge",
   "version": "1.0.0",
   "license": "MIT",
-  "private": true,
   "type": "module",
   "description": "Bridges markdown slash-commands from shared, harness, and project directories into the command registry, with a Settings page for discovery and toggles.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "plugin",
+    "commands",
+    "slash-commands"
+  ],
+  "author": {
+    "name": "uptick7",
+    "url": "https://github.com/uptick7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uptick7/dsh-plugins.git",
+    "directory": "commands-bridge"
+  },
+  "homepage": "https://github.com/uptick7/dsh-plugins/tree/main/commands-bridge#readme",
+  "bugs": "https://github.com/uptick7/dsh-plugins/issues",
+  "engines": {
+    "node": ">=24",
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+  },
   "scripts": {
     "check": "node --check index.js && node --check client.js",
-    "test": "node --test *.test.js"
+    "test": "node --test *.test.js",
+    "prepublishOnly": "npm run check"
   },
   "exports": {
     ".": "./index.js",
@@ -22,10 +46,12 @@
     "cordis.patch.yml",
     "README.md",
     "README.ru.md",
+    "LICENSE",
     "locale/*.json",
     "icon.svg"
   ],
   "dsh": {
+    "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
@@ -33,5 +59,8 @@
       "platform": "web",
       "immediately": true
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

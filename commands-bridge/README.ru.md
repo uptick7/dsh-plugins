@@ -1,8 +1,37 @@
 [English](README.md) | Русский
 
-# Commands bridge (`@local/commands-bridge`)
+# Commands bridge (`@uptick7/dsh-commands-bridge`)
 
 Мост между markdown-командами и реестром slash-команд Harness + страница **Settings → Commands**.
+
+## Установка
+
+Опубликовано на npm как [`@uptick7/dsh-commands-bridge`](https://www.npmjs.com/package/@uptick7/dsh-commands-bridge); объявлен диапазон `engines.dsh: ">=0.2.1-rc.1 <0.3.0-0"`.
+
+Установка в профиль (замените `web` на имя своего профиля), затем перезапуск host:
+
+```sh
+dsh plugin --profile web add @uptick7/dsh-commands-bridge
+```
+
+Либо установка из веб-GUI: **Плагины** (Plugin Manager) → найти `@uptick7/dsh-commands-bridge` → установить; включите бандл, если менеджер не сделал это сам.
+
+Из этого репозитория, без npm: склонируйте его и добавьте в `package.json` профиля и зависимость, и имя бандла:
+
+```json
+{
+  "dependencies": {
+    "@uptick7/dsh-commands-bridge": "link:/путь/к/dsh-plugins/commands-bridge"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@uptick7/dsh-commands-bridge"
+      ]
+    }
+  }
+}
+```
 
 ## Что делает
 
@@ -38,7 +67,7 @@ Frontmatter необязателен; имя команды — имя файл�
 ```yaml
 - insert:
     - id: commands-bridge
-      name: '@local/commands-bridge'
+      name: '@uptick7/dsh-commands-bridge'
       config:
         globalDirs: ['~/.agents/commands']   # общие для всех агентов директории
         agentDirs: ['~/.dsh/commands']       # директории этого агента

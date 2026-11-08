@@ -1,8 +1,37 @@
 English | [Русский](README.ru.md)
 
-# Commands bridge (`@local/commands-bridge`)
+# Commands bridge (`@uptick7/dsh-commands-bridge`)
 
 A bridge between markdown commands and the Harness slash-command registry, plus a **Settings → Commands** page.
+
+## Install
+
+Published on npm as [`@uptick7/dsh-commands-bridge`](https://www.npmjs.com/package/@uptick7/dsh-commands-bridge); it declares `engines.dsh: ">=0.2.1-rc.1 <0.3.0-0"`.
+
+Install into a profile (replace `web` with your profile name), then restart the host:
+
+```sh
+dsh plugin --profile web add @uptick7/dsh-commands-bridge
+```
+
+Or install from the web GUI: **Plugins** (Plugin Manager) → search for `@uptick7/dsh-commands-bridge` → install; enable the bundle if the manager does not do it automatically.
+
+From this repository without npm: clone it and add both the dependency and the bundle name to the profile's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@uptick7/dsh-commands-bridge": "link:/path/to/dsh-plugins/commands-bridge"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@uptick7/dsh-commands-bridge"
+      ]
+    }
+  }
+}
+```
 
 ## What it does
 
@@ -38,7 +67,7 @@ The frontmatter is optional; the command name is the file name without `.md` (lo
 ```yaml
 - insert:
     - id: commands-bridge
-      name: '@local/commands-bridge'
+      name: '@uptick7/dsh-commands-bridge'
       config:
         globalDirs: ['~/.agents/commands']   # directories shared by all agents
         agentDirs: ['~/.dsh/commands']       # this agent's directories

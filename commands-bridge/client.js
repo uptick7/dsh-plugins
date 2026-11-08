@@ -9,7 +9,7 @@
  * publishes `commands/change`.
  */
 window.__ModuleLoader__.load({
-  id: '@local/commands-bridge',
+  id: '@uptick7/dsh-commands-bridge',
   factory(require) {
     const React = require('react');
     const h = React.createElement;

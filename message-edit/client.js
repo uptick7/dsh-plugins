@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/message-edit',
+  id: '@uptick7/dsh-message-edit',
   factory(require) {
     const React = require('react');
     const h = React.createElement;

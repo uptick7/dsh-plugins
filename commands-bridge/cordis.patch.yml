@@ -1,4 +1,4 @@
 - insert:
     - id: commands-bridge
-      name: '@local/commands-bridge'
+      name: '@uptick7/dsh-commands-bridge'
       config: {}

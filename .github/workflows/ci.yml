@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: "check & test: ${{ matrix.plugin }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [message-edit, commands-bridge]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The tests boot a real DSH Session (no model calls) and resolve it
+      # from the global npm root.
+      - name: Install DSH globally
+        run: npm install -g @deepseek-ai/dsh
+
+      - name: Syntax check
+        working-directory: ${{ matrix.plugin }}
+        run: npm run check
+
+      - name: Tests
+        working-directory: ${{ matrix.plugin }}
+        run: npm test

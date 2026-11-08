@@ -37,7 +37,7 @@ import { watch as fsWatch } from 'node:fs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { dshHome, expandHome, expandBody, parseCommandFile, scanCommandDir } from './commands-md.js';
 
-const BRAND = '@local/commands-bridge';
+const BRAND = '@uptick7/dsh-commands-bridge';
 const INVENTORY_ROUTE = '/commands-bridge/inventory';
 const TOGGLE_ROUTE = '/commands-bridge/toggle';
 

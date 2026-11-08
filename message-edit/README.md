@@ -1,6 +1,6 @@
 English | [Русский](README.ru.md)
 
-# Message Edit
+# Message Edit (`@uptick7/dsh-message-edit`)
 
 Editing a user message **in the same session**, without a fork:
 
@@ -10,6 +10,35 @@ Editing a user message **in the same session**, without a fork:
 4. The UI hides the replaced turns only in the corresponding conversation panel.
 
 If the original message is already excluded from the surface (for example, by a previous edit or compaction), the edit is rejected. Refresh the conversation and pick the current message. An invalid edit is not sent as a regular request on top of the old history.
+
+## Install
+
+Published on npm as [`@uptick7/dsh-message-edit`](https://www.npmjs.com/package/@uptick7/dsh-message-edit); it declares `engines.dsh: ">=0.2.1-rc.1 <0.3.0-0"`.
+
+Install into a profile (replace `web` with your profile name), then restart the host:
+
+```sh
+dsh plugin --profile web add @uptick7/dsh-message-edit
+```
+
+Or install from the web GUI: **Plugins** (Plugin Manager) → search for `@uptick7/dsh-message-edit` → install; enable the bundle if the manager does not do it automatically.
+
+From this repository without npm: clone it and add both the dependency and the bundle name to the profile's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@uptick7/dsh-message-edit": "link:/path/to/dsh-plugins/message-edit"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@uptick7/dsh-message-edit"
+      ]
+    }
+  }
+}
+```
 
 ## Limitations
 
@@ -36,7 +65,9 @@ DSH_ROOT=/path/to/@deepseek-ai/dsh npm test
 
 ## Applying fixes
 
-This package ships ready-made JS entry points: there is no separate TypeScript/Vite build. If the profile references this directory, reinstalling the package is not needed. Reload the host plugin via plugin management (if available) or restart `dsh web`, then refresh the GUI page. A single browser refresh does not guarantee that the server module is reloaded.
+This package ships ready-made JS entry points: there is no separate TypeScript/Vite build. If the profile references this directory (`link:`), reinstalling the package is not needed. Reload the host plugin via plugin management (if available) or restart `dsh web`, then refresh the GUI page. A single browser refresh does not guarantee that the server module is reloaded.
+
+For an npm-installed plugin, pick up a fix by updating the package in the Plugin Manager or with `dsh plugin --profile web add @uptick7/dsh-message-edit@latest`, then restart the host.
 
 A fix does not rewrite invalid events that a previous version may have created. Run the first check in a fresh test session.
 

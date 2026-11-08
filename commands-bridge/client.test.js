@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 test('client module declares the loader entry and settings slots', () => {
   const source = readFileSync(path.join(here, 'client.js'), 'utf8');
   assert.match(source, /window\.__ModuleLoader__\.load\(/);
-  assert.match(source, /id: '@local\/commands-bridge'/);
+  assert.match(source, /id: '@uptick7\/dsh-commands-bridge'/);
   assert.match(source, /'settings\.section'/);
   assert.match(source, /'settings\.section\.icon'/);
   assert.match(source, /role: 'switch'/);

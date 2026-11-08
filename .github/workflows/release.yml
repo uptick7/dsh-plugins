@@ -1,0 +1,91 @@
+name: Release
+
+# Publish a plugin to npm: tag <plugin>-v<version>, e.g. message-edit-v1.5.2.
+# Requires the repository secret NPM_TOKEN (an npm automation token for the
+# uptick7 scope). Unrelated tags and non-matching plugin/tag pairs are skipped.
+on:
+  push:
+    tags:
+      - "*-v*"
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Plugin directory to publish"
+        required: true
+        type: choice
+        options:
+          - message-edit
+          - commands-bridge
+
+permissions:
+  contents: read
+  id-token: write # npm provenance (sigstore)
+
+jobs:
+  publish:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && matrix.plugin == github.event.inputs.plugin) ||
+      (github.event_name == 'push' && startsWith(github.ref_name, format('{0}-v', matrix.plugin)))
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - plugin: message-edit
+            package: "@uptick7/dsh-message-edit"
+          - plugin: commands-bridge
+            package: "@uptick7/dsh-commands-bridge"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify tag matches package version
+        if: github.event_name == 'push'
+        working-directory: ${{ matrix.plugin }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#*-v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Install DSH globally (tests need a local DSH)
+        run: npm install -g @deepseek-ai/dsh
+
+      - name: Syntax check
+        working-directory: ${{ matrix.plugin }}
+        run: npm run check
+
+      - name: Tests
+        working-directory: ${{ matrix.plugin }}
+        run: npm test
+
+      - name: Skip if this version is already on npm
+        id: already
+        working-directory: ${{ matrix.plugin }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION is already published, skipping"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack preview
+        if: steps.already.outputs.publish == 'true'
+        working-directory: ${{ matrix.plugin }}
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: steps.already.outputs.publish == 'true'
+        working-directory: ${{ matrix.plugin }}
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
