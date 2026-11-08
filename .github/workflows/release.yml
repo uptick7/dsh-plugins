@@ -2,8 +2,9 @@ name: Release
 
 # Publish a plugin to npm: tag <plugin>-v<version>, e.g. message-edit-v1.5.2,
 # or run the workflow manually from the Actions tab.
-# Requires the repository secret NPM_TOKEN (an npm automation token, or a
-# granular token with 2FA bypass, for the uptick7 scope).
+# Publishing authenticates via OIDC trusted publishing (no token): on
+# npmjs.com each package's Settings → Trusted Publisher must list this
+# repository with workflow file release.yml. Requires npm >= 11.5.1.
 on:
   push:
     tags:
@@ -35,7 +36,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
 
       - name: Verify tag matches package version
         if: github.event_name == 'push'
@@ -80,9 +80,9 @@ jobs:
       - name: Publish
         if: steps.already.outputs.publish == 'true'
         working-directory: message-edit
+        # Authenticated via OIDC trusted publishing: the package on npmjs.com
+        # must list this repository and workflow as its Trusted Publisher.
         run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-commands-bridge:
     name: Publish @uptick7/dsh-commands-bridge
@@ -96,7 +96,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
 
       - name: Verify tag matches package version
         if: github.event_name == 'push'
@@ -141,6 +140,6 @@ jobs:
       - name: Publish
         if: steps.already.outputs.publish == 'true'
         working-directory: commands-bridge
+        # Authenticated via OIDC trusted publishing: the package on npmjs.com
+        # must list this repository and workflow as its Trusted Publisher.
         run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
