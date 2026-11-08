@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Use latest npm (OIDC trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@latest
+
       - name: Verify tag matches package version
         if: github.event_name == 'push'
         working-directory: message-edit
@@ -96,6 +99,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Use latest npm (OIDC trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Verify tag matches package version
         if: github.event_name == 'push'
