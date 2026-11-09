@@ -205,12 +205,16 @@ test('debug route persists the last client report beside the state file', async 
     await routes.get('/sidebar-groups/debug')(fakeRequest('POST', [JSON.stringify({ phase: 'registered', entries: [] })]), res);
     assert.equal(res.statusCode, 200);
     const debugFile = stateFile.replace(/\.json$/, '') + '.debug.json';
+    // Reports append to a bounded log so a support session sees the whole story.
     const payload = JSON.parse(readFileSync(debugFile, 'utf8'));
-    assert.equal(payload.phase, 'registered');
-    assert.ok(payload.receivedAt !== undefined);
-    // A second report replaces the file, and wrong methods answer 405.
+    assert.ok(Array.isArray(payload) && payload.length === 1);
+    assert.equal(payload[0].phase, 'registered');
+    assert.ok(payload[0].receivedAt !== undefined);
+    // A second report appends, and wrong methods answer 405.
     await routes.get('/sidebar-groups/debug')(fakeRequest('POST', [JSON.stringify({ phase: 'dom-probe' })]), fakeResponse());
-    assert.equal(JSON.parse(readFileSync(debugFile, 'utf8')).phase, 'dom-probe');
+    const log = JSON.parse(readFileSync(debugFile, 'utf8'));
+    assert.equal(log.length, 2);
+    assert.equal(log[1].phase, 'dom-probe');
     const wrong = fakeResponse();
     await routes.get('/sidebar-groups/debug')(fakeRequest('GET'), wrong);
     assert.equal(wrong.statusCode, 405);

@@ -1826,10 +1826,17 @@ window.__ModuleLoader__.load({
           /** Report activation facts to the Host (written beside the state file for support). */
           const report = (payload) => {
             try {
+              const entries = () => {
+                try {
+                  return slots.entries('sidebar.workspaces').map((entry) => ({ id: entry?.options?.id, priority: entry?.options?.priority }));
+                } catch {
+                  return undefined;
+                }
+              };
               void fetch(ROUTE_DEBUG, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ ...payload, at: new Date().toISOString(), href: window.location.href }),
+                body: JSON.stringify({ ...payload, entries: entries(), at: new Date().toISOString(), href: window.location.href }),
               }).catch(() => {});
             } catch {
               // Diagnostics are best-effort.
@@ -1865,15 +1872,13 @@ window.__ModuleLoader__.load({
                   makeGroupedBrowser(face),
                 ),
               );
-              report({
-                phase: 'registered',
-                entries: slots.entries('sidebar.workspaces').map((entry) => ({ id: entry?.options?.id, priority: entry?.options?.priority })),
-              });
+              report({ phase: 'registered' });
               // Probe the live DOM once the first render should have settled.
               setTimeout(() => {
                 report({
                   phase: 'dom-probe',
                   sbgRoot: document.querySelector('.sbg-root') !== null,
+                  slotError: document.querySelector('[data-slot-error]') !== null,
                   rowKeys: [...document.querySelectorAll('[data-row-key]')].slice(0, 6).map((node) => node.getAttribute('data-row-key')),
                 });
               }, 4000);

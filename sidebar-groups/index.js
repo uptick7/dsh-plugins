@@ -191,7 +191,16 @@ export function apply(ctx, config) {
             }
             try {
               const debugFile = cfg.stateFile.replace(/\.json$/i, '') + '.debug.json';
-              const payload = JSON.stringify({ ...body, receivedAt: new Date().toISOString() }, null, 2) + '\n';
+              let log = [];
+              try {
+                const previous = JSON.parse(await readFile(debugFile, 'utf8'));
+                if (Array.isArray(previous)) log = previous;
+              } catch {
+                // First report starts a fresh log.
+              }
+              log.push({ ...body, receivedAt: new Date().toISOString() });
+              if (log.length > 50) log = log.slice(-50);
+              const payload = JSON.stringify(log, null, 2) + '\n';
               const tmp = `${debugFile}.tmp-${process.pid}-${Date.now()}`;
               await writeFile(tmp, payload, { mode: 0o644 });
               await rename(tmp, debugFile);
