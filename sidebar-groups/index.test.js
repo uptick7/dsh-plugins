@@ -186,6 +186,39 @@ test('external edits to the store file are picked up by the next read', async ()
   }
 });
 
+test('debug route persists the last client report beside the state file', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'sbg-test-'));
+  const stateFile = path.join(root, 'groups.json');
+  const routes = new Map();
+  const ctx = {
+    on: () => {},
+    inject: (_names, cb) => cb(ctx),
+    effect: (fn) => {
+      fn();
+      return () => {};
+    },
+    get: (name) => (name === 'webServer' ? { register: (route) => routes.set(route.path, route.handler) } : undefined),
+  };
+  try {
+    apply(ctx, { stateFile });
+    const res = fakeResponse();
+    await routes.get('/sidebar-groups/debug')(fakeRequest('POST', [JSON.stringify({ phase: 'registered', entries: [] })]), res);
+    assert.equal(res.statusCode, 200);
+    const debugFile = stateFile.replace(/\.json$/, '') + '.debug.json';
+    const payload = JSON.parse(readFileSync(debugFile, 'utf8'));
+    assert.equal(payload.phase, 'registered');
+    assert.ok(payload.receivedAt !== undefined);
+    // A second report replaces the file, and wrong methods answer 405.
+    await routes.get('/sidebar-groups/debug')(fakeRequest('POST', [JSON.stringify({ phase: 'dom-probe' })]), fakeResponse());
+    assert.equal(JSON.parse(readFileSync(debugFile, 'utf8')).phase, 'dom-probe');
+    const wrong = fakeResponse();
+    await routes.get('/sidebar-groups/debug')(fakeRequest('GET'), wrong);
+    assert.equal(wrong.statusCode, 405);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('unknown config keys fail loud', () => {
   const ctx = { on: () => {}, inject: () => {}, effect: () => () => {}, get: () => undefined };
   assert.throws(() => apply(ctx, { stateFile: '/tmp/x.json', surprise: 1 }), /unknown config key/);

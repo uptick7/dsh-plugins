@@ -34,6 +34,7 @@ import { applyOps, coerceState, emptyState, OpError } from './groups-ops.js';
 
 const STATE_ROUTE = '/sidebar-groups/state';
 const APPLY_ROUTE = '/sidebar-groups/apply';
+const DEBUG_ROUTE = '/sidebar-groups/debug';
 
 /** Expand a leading `~` to the user home directory. */
 function expandHome(p) {
@@ -168,6 +169,39 @@ export function apply(ctx, config) {
           },
         }),
       'sidebar-groups: apply route',
+    );
+    hostCtx.effect(
+      () =>
+        webServer.register({
+          kind: 'exact',
+          path: DEBUG_ROUTE,
+          handler: async (req, res) => {
+            if (rejected(req, res)) return;
+            if (req.method !== 'POST') {
+              sendJson(res, 405, { error: 'POST only' });
+              return;
+            }
+            // Support diagnostics: the client reports its slot-registration facts
+            // here; the last payload lands beside the state file so it can be
+            // inspected without browser devtools.
+            const body = await readJson(req);
+            if (body === undefined) {
+              sendJson(res, 400, { error: 'ожидался JSON' });
+              return;
+            }
+            try {
+              const debugFile = cfg.stateFile.replace(/\.json$/i, '') + '.debug.json';
+              const payload = JSON.stringify({ ...body, receivedAt: new Date().toISOString() }, null, 2) + '\n';
+              const tmp = `${debugFile}.tmp-${process.pid}-${Date.now()}`;
+              await writeFile(tmp, payload, { mode: 0o644 });
+              await rename(tmp, debugFile);
+              sendJson(res, 200, { ok: true });
+            } catch (error) {
+              sendJson(res, 500, { error: String(error?.message ?? error) });
+            }
+          },
+        }),
+      'sidebar-groups: debug route',
     );
   });
 

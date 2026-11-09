@@ -44,6 +44,7 @@ window.__ModuleLoader__.load({
     const NS = 'sidebarGroups';
     const ROUTE_STATE = '/sidebar-groups/state';
     const ROUTE_APPLY = '/sidebar-groups/apply';
+    const ROUTE_DEBUG = '/sidebar-groups/debug';
     /** Browser-local view state: expansions, filters, ordering. */
     const VIEW_KEY = 'dsh.sbg.view.v1';
     /** Grouped-vs-shipped browser switch, browser-local by design. */
@@ -215,7 +216,8 @@ window.__ModuleLoader__.load({
 
     //#region icons
     /** All glyphs are plain stroke SVGs in the 20-grid, matching the sidebar row size. */
-    function svgIcon(paths, extra) {
+    function svgIcon(paths) {
+      const keyed = paths.map((element, i) => h(element.type, { key: `p${i}`, ...element.props }));
       return function Icon(props) {
         const size = props?.size ?? 16;
         return h(
@@ -228,12 +230,12 @@ window.__ModuleLoader__.load({
             'aria-hidden': true,
             style: { flex: 'none', display: 'block', ...(props?.style ?? {}) },
           },
-          paths,
+          keyed,
         );
       };
     }
 
-    const stroke = { stroke: 'currentColor', 'stroke-width': 1.3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+    const stroke = { strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round' };
 
     /** Workspace folder, closed — mirrors the shipped workspace glyph. */
     const IconFolder = svgIcon([
@@ -263,7 +265,7 @@ window.__ModuleLoader__.load({
     ]);
     const IconPin = svgIcon([h('path', { d: 'M7 3.5h6l-.7 4.2 2.6 2.6v1.2H5.1v-1.2l2.6-2.6z', ...stroke }), h('path', { d: 'M10 11.5v5', ...stroke })]);
     const IconPinFilled = svgIcon([
-      h('path', { d: 'M7 3.5h6l-.7 4.2 2.6 2.6v1.2H5.1v-1.2l2.6-2.6z', fill: 'currentColor', stroke: 'currentColor', 'stroke-width': 1.3, 'stroke-linejoin': 'round' }),
+      h('path', { d: 'M7 3.5h6l-.7 4.2 2.6 2.6v1.2H5.1v-1.2l2.6-2.6z', fill: 'currentColor', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round' }),
       h('path', { d: 'M10 11.5v5', ...stroke }),
     ]);
     const IconArchive = svgIcon([
@@ -1174,16 +1176,16 @@ window.__ModuleLoader__.load({
         h('span', { className: 'sbg-time' }, relativeTime(row.updatedAt, view.now, t)),
         h(Actions, null,
           row.archived
-            ? h('span', { className: 'sbg-mark', title: t('session.archived') }, h(IconArchive, { size: 13 }))
+            ? h('span', { key: 'arch', className: 'sbg-mark', title: t('session.archived') }, h(IconArchive, { size: 13 }))
             : [
-                row.pinned ? h('span', { className: 'sbg-mark', title: t('session.pinned'), style: { marginRight: 2 } }, h(IconPinFilled, { size: 13 })) : null,
+                row.pinned ? h('span', { key: 'pinm', className: 'sbg-mark', title: t('session.pinned'), style: { marginRight: 2 } }, h(IconPinFilled, { size: 13 })) : null,
                 onTogglePin !== undefined
-                  ? iconButton({ 'aria-label': t('session.pinned'), title: t('session.pinned'), onClick: (e) => { e.stopPropagation(); onTogglePin(); } }, h(row.pinned ? IconPin : IconPinFilled, { size: 13 }))
+                  ? iconButton({ key: 'pin', 'aria-label': t('session.pinned'), title: t('session.pinned'), onClick: (e) => { e.stopPropagation(); onTogglePin(); } }, h(row.pinned ? IconPin : IconPinFilled, { size: 13 }))
                   : null,
                 onArchive !== undefined
-                  ? iconButton({ 'aria-label': t('session.archived'), title: t('session.archived'), onClick: (e) => { e.stopPropagation(); onArchive(); } }, h(IconArchive, { size: 13 }))
+                  ? iconButton({ key: 'arch', 'aria-label': t('session.archived'), title: t('session.archived'), onClick: (e) => { e.stopPropagation(); onArchive(); } }, h(IconArchive, { size: 13 }))
                   : null,
-                iconButton({ 'aria-label': `${t('aria.more')}: ${row.displayTitle}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsis, { size: 14 })),
+                iconButton({ key: 'more', 'aria-label': `${t('aria.more')}: ${row.displayTitle}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsis, { size: 14 })),
               ],
         ),
       );
@@ -1821,32 +1823,64 @@ window.__ModuleLoader__.load({
         // Register/unregister the grouped browser as the switch flips.
         ctx.effect(() => {
           let disposeInject;
+          /** Report activation facts to the Host (written beside the state file for support). */
+          const report = (payload) => {
+            try {
+              void fetch(ROUTE_DEBUG, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ ...payload, at: new Date().toISOString(), href: window.location.href }),
+              }).catch(() => {});
+            } catch {
+              // Diagnostics are best-effort.
+            }
+          };
           const install = () => {
             if (disposeInject !== undefined) {
               disposeInject();
               disposeInject = undefined;
             }
-            if (!enabledStore.getSnapshot()) return;
-            disposeInject = slots.inject('sidebar.workspaces', () =>
-              slots.register(
-                {
-                  name: 'sidebar.workspaces',
-                  id: 'sidebar-groups',
-                  locale: NS,
-                  // A single slot rejects two entries at the same priority; the
-                  // lowest priority renders, so -1 shadows the shipped browser
-                  // (priority 0) and unregistering brings it back.
-                  priority: -1,
-                  // No children declarations here: shadowing only changes who
-                  // renders the slot, the shipped browser entry stays registered
-                  // and keeps declaring its seats (directoryFlow, row seats), and
-                  // re-declaring them would fail the registry's duplicate check.
-                  // renderSlot resolves the seats by name, so occupants (the
-                  // directory picker, the schedule clock) keep working.
-                },
-                makeGroupedBrowser(face),
-              ),
-            );
+            if (!enabledStore.getSnapshot()) {
+              report({ phase: 'disabled' });
+              return;
+            }
+            try {
+              disposeInject = slots.inject('sidebar.workspaces', () =>
+                slots.register(
+                  {
+                    name: 'sidebar.workspaces',
+                    id: 'sidebar-groups',
+                    locale: NS,
+                    // A single slot rejects two entries at the same priority; the
+                    // lowest priority renders, so -1 shadows the shipped browser
+                    // (priority 0) and unregistering brings it back.
+                    priority: -1,
+                    // No children declarations here: shadowing only changes who
+                    // renders the slot, the shipped browser entry stays registered
+                    // and keeps declaring its seats (directoryFlow, row seats), and
+                    // re-declaring them would fail the registry's duplicate check.
+                    // renderSlot resolves the seats by name, so occupants (the
+                    // directory picker, the schedule clock) keep working.
+                  },
+                  makeGroupedBrowser(face),
+                ),
+              );
+              report({
+                phase: 'registered',
+                entries: slots.entries('sidebar.workspaces').map((entry) => ({ id: entry?.options?.id, priority: entry?.options?.priority })),
+              });
+              // Probe the live DOM once the first render should have settled.
+              setTimeout(() => {
+                report({
+                  phase: 'dom-probe',
+                  sbgRoot: document.querySelector('.sbg-root') !== null,
+                  rowKeys: [...document.querySelectorAll('[data-row-key]')].slice(0, 6).map((node) => node.getAttribute('data-row-key')),
+                });
+              }, 4000);
+            } catch (error) {
+              report({ phase: 'register-failed', error: String(error?.stack ?? error) });
+              throw error;
+            }
           };
           install();
           const off = enabledStore.subscribe(install);
