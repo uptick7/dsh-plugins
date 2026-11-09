@@ -27,6 +27,57 @@ test('client replaces the shipped browser without re-declaring its seats', () =>
   assert.match(spec, /priority:\s*-1/, 'registration must shadow with priority -1');
 });
 
+test('client icons come from the shipped primitives package', () => {
+  // The loader only exposes a package to `require` when it is declared in
+  // `dsh.client.inject`, so the manifest must carry the primitives package.
+  assert.match(clientSource, /require\('@deepseek-ai\/dsh-client-ui-primitives'\)/);
+  const pkg = JSON.parse(readFileSync(path.join(here, 'package.json'), 'utf8'));
+  assert.ok(pkg.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-primitives'), 'primitives package must be injected');
+  // No hand-drawn glyphs left behind: the custom svgIcon factory is gone.
+  assert.doesNotMatch(clientSource, /function svgIcon/);
+});
+
+test('running sessions render the native ongoing StateDot', () => {
+  // The shipped StateDot("ongoing") is the spinning circle; the grouped
+  // sidebar must reuse it rather than a custom dot or spinner.
+  assert.match(clientSource, /const STATUS_DOT = \{ running: 'ongoing', pending: 'warning', done: 'done' \};/);
+  assert.match(clientSource, /h\(StateDot, \{ state: STATUS_DOT\[dotKind\] \}\)/);
+  assert.doesNotMatch(clientSource, /@keyframes sbg-spin/);
+});
+
+test('presentation preferences expose indent and count toggles', () => {
+  // Settings page controls: a level-indent selector and a count-badge switch,
+  // persisted browser-local under the prefs key with sane clamping.
+  assert.match(clientSource, /const PREFS_KEY = 'dsh\.sbg\.prefs\.v1';/);
+  assert.match(clientSource, /const PREFS_DEFAULTS = \{ indent: 12, showCounts: true \};/);
+  assert.match(clientSource, /const INDENT_CHOICES = \[0, 4, 8, 12, 16, 20\];/);
+  assert.match(clientSource, /prefsStore\.set\(\{ indent: Number\(e\.target\.value\) \}\)/);
+  assert.match(clientSource, /prefsStore\.set\(\{ showCounts: next \}\)/);
+  // Rows honor both prefs: padding per level, badges behind the switch.
+  assert.match(clientSource, /paddingLeft: 6 \+ row\.depth \* indent/);
+  assert.match(clientSource, /showCounts && row\.count > 0 \? h\('span', \{ className: 'sbg-count' \}/);
+});
+
+test('grouped browser only uses renderSlot inside the ownership guard', () => {
+  // The renderer injects `renderSlot` only for entries that declare the child
+  // slots themselves; this entry shadows the shipped browser without declaring
+  // its seats, so the prop is absent in practice.
+  assert.match(clientSource, /const sharedDirectoryFlow = typeof renderSlot === 'function';/);
+  const call = clientSource.indexOf("renderSlot('sidebar.workspaces.directoryFlow'");
+  assert.ok(call > 0, 'shared directory-flow seat is not rendered any more');
+  const guard = clientSource.slice(Math.max(0, call - 120), call);
+  assert.match(guard, /sharedDirectoryFlow && directoryFlowReady/, 'renderSlot call must be guarded');
+});
+
+test('context menu providers receive the captured value object', () => {
+  // contextMenus.register resolves with target.value, so the callbacks must not
+  // unwrap a second ".value" (the registry silently drops a throwing provider).
+  assert.doesNotMatch(clientSource, /(?<!request\.)target\.value\.sessionId/);
+  assert.doesNotMatch(clientSource, /(?<!request\.)target\.value\.workspaceId/);
+  assert.match(clientSource, /resolve: \(value\) => \{\s*const sessionId = value\.sessionId;/);
+  assert.match(clientSource, /resolve: \(value\) => \{\s*const workspaceId = value\.workspaceId;/);
+});
+
 test('client registers settings section, overlays, and context menu contributions', () => {
   for (const slot of ['settings.section', 'settings.section.icon', 'shell.overlay', 'contextMenu.icon', 'sidebar.session.row.trailing']) {
     assert.match(clientSource, new RegExp(`'${slot.replace(/\./g, '\\.')}'`), `missing slot ${slot}`);
@@ -52,9 +103,9 @@ test('client ops vocabulary matches the host model', () => {
   assert.deepEqual(new Set(known), new Set(['group.create', 'group.rename', 'group.delete', 'group.move', 'member.assign', 'member.unassign']));
 });
 
-test('client never imports harness client packages (self-contained factory)', () => {
+test('client only requires react and the shipped primitives', () => {
   const requires = [...clientSource.matchAll(/require\((['"])([^'"]+)\1\)/g)].map((m) => m[2]);
-  assert.deepEqual(requires, ['react']);
+  assert.deepEqual(requires, ['react', '@deepseek-ai/dsh-client-ui-primitives']);
 });
 
 test('client dictionaries cover ru and en for every used key', () => {
@@ -74,7 +125,9 @@ test('membership key prefixes agree across client and model', () => {
   assert.match(opsSource, /\^\(workspace\|session\):/);
 });
 
-test('indentation stays compact per the sidebar constraint', () => {
-  const indent = Number(clientSource.match(/const INDENT_PX = (\d+);/)?.[1]);
-  assert.ok(indent >= 12 && indent <= 14, `indent step ${indent} outside the 12–14px window`);
+test('indent default matches the shipped density', () => {
+  const defaults = clientSource.match(/const PREFS_DEFAULTS = \{ indent: (\d+), showCounts: (true|false) \};/);
+  const indent = Number(defaults?.[1]);
+  assert.ok(indent >= 8 && indent <= 14, `indent default ${indent} outside the 8–14px window`);
+  assert.equal(defaults?.[2], 'true', 'count badges default to visible');
 });

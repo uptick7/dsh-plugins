@@ -55,7 +55,7 @@ The plugin replaces the shipped Workspaces panel with a grouping-aware tree:
   - group rows (right-click or `…`): *Create subgroup*, *Rename*, *Move into group ▸*, *Delete group* (subgroups rise to the deleted group's level, members become ungrouped; sessions and workspaces are not affected);
   - session rows: the shipped session menu still works (pin, rename, fork, copy id, archive — its dialogs are frame overlays and survive the replacement), plus a *Group ▸* submenu (assign / remove / new group);
   - workspace rows: a custom popup renders the shared menu contributions — including "open in app" from other plugins — and supplies its own *Rename* / *Delete* (the shipped entries for those two would write into the replaced panel's private dialog state, so they are filtered out and re-implemented here on the public API, with confirmation dialogs).
-- **Header**: search (instant metadata matches plus the debounced host content search), view options (ordering by last updated / by name; archived sessions hidden / shown / only), new workspace group, add workspace (the composed directory picker fills the same hole the shipped panel uses).
+- **Header**: search (instant metadata matches plus the debounced host content search), view options (ordering by last updated / by name; archived sessions hidden / shown / only), new workspace group, add workspace (the same host directory picker the shipped panel uses, called through `uiWorkspace.pickDirectory()`).
 - The Ungrouped bucket ("No workspace") behaves as one more container and can hold its own session groups.
 - The provisional blank **New Session** keeps the first slot of its workspace and cannot be dragged.
 - **Settings → Session groups**:
@@ -98,7 +98,7 @@ The file never touches session titles, workspace titles, or directories: deletin
 
 ## How it hooks in
 
-- Registers a component into the `sidebar.workspaces` single slot (declared by the sidebar shell, filled by the shipped `ui-workspace` browser); a dynamically registered entry wins that slot. Shadowing changes only who renders the slot: the shipped browser entry stays registered and keeps declaring its child seats, so occupants (the schedule clock, the directory-picking hole) keep working. The plugin declares no seats of its own — the registry rejects duplicate declarations.
+- Registers a component into the `sidebar.workspaces` single slot (declared by the sidebar shell, filled by the shipped `ui-workspace` browser) at priority `-1`; the lowest priority renders. The shipped browser entry stays registered and keeps declaring its child seats, so other occupants (the schedule clock) keep working, and the plugin declares no seats of its own — the registry rejects duplicate declarations. `renderSlot` is scoped to an entry's own children, so a shadowing entry cannot render the shipped directory-flow seat; the add-workspace button calls the public `uiWorkspace.pickDirectory()` RPC instead.
 - Everything else is public API: `ctx.sessions`, `ctx.workspaces`, `ctx.uiWorkspace`, `ctx.uiSession`, `ctx.remoteAccess`, `ctx.contextMenus`, `ctx.locale`, `shell.overlay`, `settings.section`.
 
 ## Limitations
@@ -117,4 +117,4 @@ npm run check   # syntax check
 node dev-activation-harness.js  # materialize client.js with stubs and run apply() to debug boot failures
 ```
 
-`groups-ops.js` is the pure op model (validation, application, orphan detection) shared by the Host half and the tests; `client.js` is self-contained and imports nothing but React, per the repo's client-plugin convention.
+`groups-ops.js` is the pure op model (validation, application, orphan detection) shared by the Host half and the tests; `client.js` imports only React and the shipped client UI primitives (declared in `dsh.client.inject`), so icons, the status dot, and switches are the harness's own components.

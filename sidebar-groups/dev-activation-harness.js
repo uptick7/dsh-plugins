@@ -25,14 +25,20 @@ globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
   visibilityState: 'visible',
+  querySelector: () => null,
+  querySelectorAll: () => [],
 };
 globalThis.fetch = async () => { throw new Error('no network in harness'); };
 
 const reactStub = Object.fromEntries(
   ['useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 'useSyncExternalStore', 'createElement'].map((k) => [k, () => null]),
 );
+// The client destructures every primitive it uses; a Proxy hands out inert
+// component stubs so the factory body runs without the real package.
+const primitivesStub = new Proxy({}, { get: () => () => null });
 const require = (id) => {
   if (id === 'react') return reactStub;
+  if (id === '@deepseek-ai/dsh-client-ui-primitives') return primitivesStub;
   throw new Error(`unexpected require: ${id}`);
 };
 

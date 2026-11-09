@@ -19,8 +19,11 @@
  * UI status (`ctx.uiSession`), navigation (`ctx.uiWorkspace`), the shared
  * session context menu (`ctx.contextMenus`, target `session` — its rename,
  * fork, pin, archive dialogs are overlay entries that survive the shadowing),
- * the directory-picking hole, and the row seats (the trailing seat keeps the
- * group mark visible while the shipped browser is active). Workspace
+ * and the row seats (the trailing seat keeps the group mark visible while the
+ * shipped browser is active). The directory-flow seat is declared by the
+ * shipped entry and `renderSlot` is scoped to an entry's own children, so the
+ * shadowing entry cannot render that seat; the add-workspace button calls the
+ * public `uiWorkspace.pickDirectory()` RPC instead. Workspace
  * rename/delete of the shipped menu would write into the shadowed browser's
  * private dialog state, so workspace rows open a custom popup that renders
  * `ctx.contextMenus.resolve(target)` views without those two contributions
@@ -30,9 +33,10 @@
  * unregisters this browser and brings the shipped one back, plus stale-link
  * cleanup for deleted workspaces and sessions.
  *
- * Deliberately imports nothing but React: the plugin is self-contained, per
- * the repo convention of not reaching into harness client packages from
- * plugin code.
+ * Imports nothing beyond React and the shipped client UI primitives (declared
+ * in `dsh.client.inject`): all glyphs, the status dot, and the switch reuse
+ * the harness's own components so the grouped sidebar never drifts from the
+ * built-in browser's look.
  */
 window.__ModuleLoader__.load({
   id: '@uptick7/dsh-sidebar-groups',
@@ -49,8 +53,16 @@ window.__ModuleLoader__.load({
     const VIEW_KEY = 'dsh.sbg.view.v1';
     /** Grouped-vs-shipped browser switch, browser-local by design. */
     const ENABLED_KEY = 'dsh.sbg.enabled';
-    /** Pixels of indentation per tree level; the sidebar is narrow, keep titles readable. */
-    const INDENT_PX = 12;
+    /** Choices offered by the settings-page level-indent selector. */
+    const INDENT_CHOICES = [0, 4, 8, 12, 16, 20];
+    /** Browser-local presentation preferences: indent per tree level, group count badges. */
+    const PREFS_KEY = 'dsh.sbg.prefs.v1';
+    const PREFS_DEFAULTS = { indent: 12, showCounts: true };
+    /** Clamp stored prefs so hand-edited localStorage cannot break the layout. */
+    const sanitizePrefs = (value) => ({
+      indent: Number.isFinite(value?.indent) && value.indent >= 0 && value.indent <= 32 ? Math.round(value.indent) : PREFS_DEFAULTS.indent,
+      showCounts: value?.showCounts === undefined ? PREFS_DEFAULTS.showCounts : value.showCounts === true,
+    });
 
     //#region locale
     const DICTIONARIES = {
@@ -59,6 +71,10 @@ window.__ModuleLoader__.load({
         'settings.enabled': 'Grouped sidebar',
         'settings.enabled.hint':
           'Replaces the Workspaces panel with a grouped tree: workspace groups, workspaces, session groups, sessions. Sessions and workspaces are never renamed or moved — groups are a display layer keyed by their stable ids.',
+        'settings.indent': 'Level indent',
+        'settings.indent.hint': 'Horizontal offset per nesting level in the grouped tree.',
+        'settings.counts': 'Show item counts',
+        'settings.counts.hint': 'Display the member count next to workspace and session groups.',
         'settings.stateFile': 'Storage',
         'settings.stats': '{groups} group(s), {links} linked item(s)',
         'settings.cleanup': 'Clean stale links',
@@ -112,6 +128,7 @@ window.__ModuleLoader__.load({
         'dialog.workspace.name': 'Workspace name',
         'toast.groupsError': 'Failed to save groups',
         'toast.workspaceError': 'Workspace operation failed',
+        'toast.pickerUnavailable': 'Directory picker is unavailable',
         'toast.archived': 'An archived session cannot be opened',
         'toast.copied': 'Copied',
         'empty.title': 'No sessions yet',
@@ -127,6 +144,10 @@ window.__ModuleLoader__.load({
         'settings.enabled': 'Группированная боковая панель',
         'settings.enabled.hint':
           'Заменяет панель Workspaces группированным деревом: группы воркспейсов, воркспейсы, группы сессий, сессии. Сессии и воркспейсы не переименовываются и не переносятся — группы это слой отображения, привязанный к их стабильным идентификаторам.',
+        'settings.indent': 'Отступ уровней',
+        'settings.indent.hint': 'Горизонтальный сдвиг за каждый уровень вложенности в группированном дереве.',
+        'settings.counts': 'Показывать количество',
+        'settings.counts.hint': 'Отображать число элементов рядом с группами воркспейсов и сессий.',
         'settings.stateFile': 'Хранилище',
         'settings.stats': 'Групп: {groups}, связей: {links}',
         'settings.cleanup': 'Убрать устаревшие ссылки',
@@ -180,6 +201,7 @@ window.__ModuleLoader__.load({
         'dialog.workspace.name': 'Название воркспейса',
         'toast.groupsError': 'Не удалось сохранить группы',
         'toast.workspaceError': 'Не удалось выполнить операцию с воркспейсом',
+        'toast.pickerUnavailable': 'Выбор директории недоступен',
         'toast.archived': 'Архивную сессию нельзя открыть',
         'toast.copied': 'Скопировано',
         'empty.title': 'Сессий пока нет',
@@ -215,94 +237,50 @@ window.__ModuleLoader__.load({
     //#endregion
 
     //#region icons
-    /** All glyphs are plain stroke SVGs in the 20-grid, matching the sidebar row size. */
-    function svgIcon(paths) {
-      const keyed = paths.map((element, i) => h(element.type, { key: `p${i}`, ...element.props }));
-      return function Icon(props) {
-        const size = props?.size ?? 16;
-        return h(
-          'svg',
-          {
-            viewBox: '0 0 20 20',
-            width: size,
-            height: size,
-            fill: 'none',
-            'aria-hidden': true,
-            style: { flex: 'none', display: 'block', ...(props?.style ?? {}) },
-          },
-          keyed,
-        );
-      };
-    }
+    // Every glyph comes from the shipped primitives package (arrived via the
+    // `dsh.client.inject` list in package.json), so the grouped sidebar never
+    // diverges from the built-in browser: same shapes, sizes, and stroke
+    // weights, and the running-session spinner is the native StateDot.
+    const {
+      StateDot,
+      Switch,
+      IconFolderCloseRegular,
+      IconFolderOpenRegular,
+      IconWorkspaceTreeOutlineRegular,
+      IconQueueOutlineRegular,
+      IconNewChatOutlineRegular,
+      IconSearchOutlineRegular,
+      IconSlidersTwoOutlineRegular,
+      IconProjectAddOutlineRegular,
+      IconEllipsisOutlineRegular,
+      IconPinOutlineRegular,
+      IconPinFillRegular,
+      IconArchiveOutlineRegular,
+      IconEditOutlineRegular,
+      IconTrashOutlineRegular,
+      IconTriangleRightFillRegular,
+    } = require('@deepseek-ai/dsh-client-ui-primitives');
 
-    const stroke = { strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round' };
-
-    /** Workspace folder, closed — mirrors the shipped workspace glyph. */
-    const IconFolder = svgIcon([
-      h('path', { d: 'M3.5 6.2c0-1.1.9-2 2-2h3.1l1.8 1.9h4.1c1.1 0 2 .9 2 2v7.2c0 1.1-.9 2-2 2h-9c-1.1 0-2-.9-2-2z', ...stroke }),
-    ]);
-    /** Workspace folder, open. */
-    const IconFolderOpen = svgIcon([
-      h('path', { d: 'M3.5 6.2c0-1.1.9-2 2-2h3.1l1.8 1.9h4.1c1.1 0 2 .9 2 2v1.2', ...stroke }),
-      h('path', { d: 'M2.6 10.2h13.2l-1.3 5.4c-.2.9-1 1.5-1.9 1.5H5.8c-.9 0-1.7-.6-1.9-1.5z', ...stroke }),
-    ]);
-    /** A workspace group: several folders. */
-    const IconFolders = svgIcon([
-      h('path', { d: 'M7.1 4.2h2.6l1.5 1.6h3.3c.9 0 1.6.7 1.6 1.6v.7', ...stroke, opacity: 0.55 }),
-      h('path', { d: 'M3.2 7.1c0-.9.7-1.6 1.6-1.6h2.6l1.5 1.6h3.6c.9 0 1.6.7 1.6 1.6v6.2c0 .9-.7 1.6-1.6 1.6H4.8c-.9 0-1.6-.7-1.6-1.6z', ...stroke }),
-    ]);
-    /** A session group: several messages. */
-    const IconMessages = svgIcon([
-      h('path', { d: 'M6.7 4.5h7.6c.9 0 1.6.7 1.6 1.6v5.1c0 .9-.7 1.6-1.6 1.6h-.5v2.3l-2.6-2.3H8.5', ...stroke, opacity: 0.55 }),
-      h('path', { d: 'M3.4 6.6c0-.9.7-1.6 1.6-1.6h5.5c.9 0 1.6.7 1.6 1.6v4.3c0 .9-.7 1.6-1.6 1.6H6.5l-2.5 2.2v-2.2h-.2c-.9 0-1.6-.7-1.6-1.6z', ...stroke }),
-    ]);
-    /** Collapse chevron for expandable rows. */
-    const IconChevron = svgIcon([h('path', { d: 'M8 5.5L12.5 10 8 14.5', ...stroke })]);
-    const IconEllipsis = svgIcon([
-      h('circle', { cx: '4.6', cy: '10', r: '1.3', fill: 'currentColor' }),
-      h('circle', { cx: '10', cy: '10', r: '1.3', fill: 'currentColor' }),
-      h('circle', { cx: '15.4', cy: '10', r: '1.3', fill: 'currentColor' }),
-    ]);
-    const IconPin = svgIcon([h('path', { d: 'M7 3.5h6l-.7 4.2 2.6 2.6v1.2H5.1v-1.2l2.6-2.6z', ...stroke }), h('path', { d: 'M10 11.5v5', ...stroke })]);
-    const IconPinFilled = svgIcon([
-      h('path', { d: 'M7 3.5h6l-.7 4.2 2.6 2.6v1.2H5.1v-1.2l2.6-2.6z', fill: 'currentColor', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round' }),
-      h('path', { d: 'M10 11.5v5', ...stroke }),
-    ]);
-    const IconArchive = svgIcon([
-      h('path', { d: 'M3.5 5h13v3h-13z', ...stroke }),
-      h('path', { d: 'M4.8 8v8.2c0 .7.6 1.3 1.3 1.3h7.8c.7 0 1.3-.6 1.3-1.3V8', ...stroke }),
-      h('path', { d: 'M8 11h4', ...stroke }),
-    ]);
-    const IconNewChat = svgIcon([
-      h('path', { d: 'M4 6.4c0-1.3 1-2.3 2.3-2.3h7.4c1.3 0 2.3 1 2.3 2.3v5c0 1.3-1 2.3-2.3 2.3H9l-3.4 3v-3H6.3C5 13.7 4 12.7 4 11.4z', ...stroke }),
-    ]);
-    const IconSearch = svgIcon([h('circle', { cx: '9', cy: '9', r: '4.6', ...stroke }), h('path', { d: 'M12.5 12.5l4 4', ...stroke })]);
-    const IconPlus = svgIcon([h('path', { d: 'M10 4.5v11M4.5 10h11', ...stroke })]);
-    const IconSliders = svgIcon([h('path', { d: 'M4 6.5h8M14.8 6.5h1.2M4 13.5h1.2M8 13.5h8', ...stroke }), h('circle', { cx: '13.4', cy: '6.5', r: '1.4', ...stroke }), h('circle', { cx: '6.6', cy: '13.5', r: '1.4', ...stroke })]);
-    const IconEdit = svgIcon([h('path', { d: 'M4 16h.9l9.4-9.4-1.9-1.9L3 14.1z', ...stroke }), h('path', { d: 'M11.4 4.7l1.9-1.9 1.9 1.9-1.9 1.9z', ...stroke })]);
-    const IconTrash = svgIcon([
-      h('path', { d: 'M4.5 6h11', ...stroke }),
-      h('path', { d: 'M8 6V4.6c0-.6.5-1.1 1.1-1.1h1.8c.6 0 1.1.5 1.1 1.1V6', ...stroke }),
-      h('path', { d: 'M6 6l.7 9.6c0 .7.6 1.3 1.3 1.3h4c.7 0 1.3-.6 1.3-1.3L14 6', ...stroke }),
-    ]);
+    /** Session status kind → native StateDot state. */
+    const STATUS_DOT = { running: 'ongoing', pending: 'warning', done: 'done' };
     //#endregion
 
     //#region styles
     const STYLE_ID = 'dsh-sidebar-groups-style';
     const CSS = `
-.sbg-root{display:flex;flex-direction:column;min-height:0;height:100%;color:var(--dsw-alias-label-primary);font-size:13px;line-height:18px;--sbg-indent:${INDENT_PX}px}
+.sbg-root{display:flex;flex-direction:column;min-height:0;height:100%;color:var(--dsw-alias-label-primary);font-size:14px;line-height:20px}
 .sbg-header{display:flex;align-items:center;gap:2px;padding:8px 10px 6px;flex:none}
-.sbg-title{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbg-title{font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sbg-hbtn{position:relative;flex:none;width:26px;height:26px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
 .sbg-hbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .sbg-hbtn:focus-visible{outline:1.5px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 .sbg-searchline{display:flex;align-items:center;gap:6px;padding:0 10px 6px;flex:none}
-.sbg-searchline input{flex:1;min-width:0;height:26px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base));color:inherit;font:inherit;font-size:12px;padding:0 8px;outline:none}
+.sbg-searchline input{flex:1;min-width:0;height:26px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base));color:inherit;font:inherit;font-size:13px;line-height:18px;padding:0 8px;outline:none}
 .sbg-searchline input:focus-visible{outline:none;border-color:var(--dsw-alias-state-business-primary)}
 .sbg-banner{margin:0 10px 6px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);padding:6px 8px;color:var(--dsw-alias-state-error-primary);font-size:12px;display:flex;gap:8px;align-items:center;flex:none}
-.sbg-banner button{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:inherit;border-radius:var(--dsw-radius-sm);cursor:pointer;font:inherit;font-size:11px;padding:2px 8px}
+.sbg-banner button{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:inherit;border-radius:var(--dsw-radius-sm);cursor:pointer;font:inherit;font-size:12px;padding:2px 8px}
 .sbg-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 6px 12px;scrollbar-width:thin;position:relative}
-.sbg-row{position:relative;display:flex;align-items:center;height:30px;border-radius:var(--dsw-radius-sm);cursor:pointer;user-select:none;min-width:0}
+.sbg-row{position:relative;display:flex;align-items:center;height:32px;border-radius:var(--dsw-radius-sm);cursor:pointer;user-select:none;min-width:0}
 .sbg-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .sbg-row[data-selected="true"]{background:var(--dsw-alias-interactive-bg-selected,var(--dsw-alias-interactive-bg-hover))}
 .sbg-row[data-droptarget="true"]{background:var(--dsw-alias-interactive-bg-hover);outline:1.5px dashed var(--dsw-alias-state-business-primary);outline-offset:-1.5px}
@@ -315,12 +293,9 @@ window.__ModuleLoader__.load({
 .sbg-chevron[data-leaf="true"]{visibility:hidden}
 .sbg-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sbg-group-label{font-weight:600}
-.sbg-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;margin-left:6px}
-.sbg-time{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;margin-left:6px;white-space:nowrap}
-.sbg-dot{flex:none;width:7px;height:7px;border-radius:50%;margin-left:6px;background:var(--dsw-alias-label-tertiary)}
-.sbg-dot[data-kind="running"]{background:var(--dsw-alias-state-business-primary)}
-.sbg-dot[data-kind="pending"]{background:var(--dsw-alias-state-warn-primary,#d97706)}
-.sbg-dot[data-kind="done"]{background:var(--dsw-alias-state-success-primary,#15803d)}
+.sbg-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:17px;margin-left:6px}
+.sbg-time{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:17px;margin-left:6px;white-space:nowrap}
+.sbg-row[data-container="true"]{height:34px}
 .sbg-mark{flex:none;color:var(--dsw-alias-label-tertiary);margin-left:6px;display:flex}
 .sbg-actions{flex:none;display:flex;align-items:center;gap:1px;margin-left:4px;opacity:0}
 .sbg-row:hover .sbg-actions,.sbg-row:focus-within .sbg-actions,.sbg-row[data-menuopen="true"] .sbg-actions{opacity:1}
@@ -361,12 +336,8 @@ window.__ModuleLoader__.load({
 .sbg-settings .sbg-set-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .sbg-settings .sbg-set-hint{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .sbg-settings .sbg-set-code{font-family:var(--ds-font-family-code,monospace);font-size:12px;color:var(--dsw-alias-label-secondary)}
-.sbg-switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:36px;height:20px;padding:2px;border:0;border-radius:999px;background:var(--dsw-alias-border-l3,#00000042);cursor:pointer}
-.sbg-switch[aria-checked="true"]{background:var(--dsw-alias-brand-primary)}
-.sbg-switch:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}
-.sbg-thumb{display:block;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-label-primary-foreground,#fff);transition:transform .12s ease}
-.sbg-switch[aria-checked="false"] .sbg-thumb{background:var(--dsw-alias-switch-thumb,#fff)}
-.sbg-switch[aria-checked="true"] .sbg-thumb{transform:translate(16px)}
+.sbg-set-select{flex:0 0 auto;height:28px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base));color:inherit;font:inherit;font-size:13px;padding:0 8px;outline:none}
+.sbg-set-select:focus-visible{outline:none;border-color:var(--dsw-alias-state-business-primary)}
 .sbg-settings .sbg-cleanup{align-self:flex-start;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);border-radius:var(--dsw-radius-sm);cursor:pointer;font:inherit;font-size:12px;padding:4px 10px}
 .sbg-settings .sbg-cleanup:hover{background:var(--dsw-alias-interactive-bg-hover)}
 `;
@@ -393,6 +364,19 @@ window.__ModuleLoader__.load({
     const enabledStore = (() => {
       const store = createStore(readLocal(ENABLED_KEY, true) !== false);
       return { ...store, set(next) { writeLocal(ENABLED_KEY, next); store.set(next); } };
+    })();
+
+    /** Presentation preferences store (indent per level, group count badges). */
+    const prefsStore = (() => {
+      const store = createStore(sanitizePrefs(readLocal(PREFS_KEY, PREFS_DEFAULTS)));
+      return {
+        ...store,
+        set(patch) {
+          const next = sanitizePrefs({ ...store.getSnapshot(), ...patch });
+          writeLocal(PREFS_KEY, next);
+          store.set(next);
+        },
+      };
     })();
 
     /** Mint a client-side group id. */
@@ -896,19 +880,16 @@ window.__ModuleLoader__.load({
       const canRename = face.remoteAccess.source('workspace', request.target.value.workspaceId, 'workspace/rename').getSnapshot();
       const canDelete = face.remoteAccess.source('workspace', request.target.value.workspaceId, 'workspace/delete').getSnapshot();
       const rows = [];
-      if (canRename) rows.push({ id: 'sbg:workspace.rename', label: t('menu.rename'), glyph: h(IconEdit, { size: 15 }), run: () => face.dialogs.openWorkspaceRename(request.target.value) });
+      if (canRename) rows.push({ id: 'sbg:workspace.rename', label: t('menu.rename'), glyph: h(IconEditOutlineRegular, { size: 16 }), run: () => face.dialogs.openWorkspaceRename(request.target.value) });
       const middle = views.filter((view) => !dead(view)).map((view) => flattenView(view, openSubs));
       const flattened = [...rows, ...middle];
       if (canDelete) {
         if (flattened.length > 0) flattened.push('sep');
-        flattened.push({ id: 'sbg:workspace.delete', label: t('menu.delete'), danger: true, glyph: h(IconTrash, { size: 15 }), run: () => face.dialogs.openWorkspaceDelete(request.target.value) });
+        flattened.push({ id: 'sbg:workspace.delete', label: t('menu.delete'), danger: true, glyph: h(IconTrashOutlineRegular, { size: 16 }), run: () => face.dialogs.openWorkspaceDelete(request.target.value) });
       }
       const pick = (row) => {
-        if (row.view !== undefined) {
-          resolutionRef.current?.select(row.view.id);
-          workspaceMenuStore.set(null);
-          return;
-        }
+        // Submenu parents must toggle, not select: the registry's select()
+        // ignores rows with children, and closing here would hide the submenu.
         if (row.children !== undefined) {
           setOpenSubs((current) => {
             const next = new Set(current);
@@ -916,6 +897,11 @@ window.__ModuleLoader__.load({
             else next.add(row.id);
             return next;
           });
+          return;
+        }
+        if (row.view !== undefined) {
+          resolutionRef.current?.select(row.view.id);
+          workspaceMenuStore.set(null);
           return;
         }
         workspaceMenuStore.set(null);
@@ -1078,17 +1064,18 @@ window.__ModuleLoader__.load({
 
     const iconButton = (props, glyph) => h('button', { type: 'button', className: 'sbg-abtn', ...props }, glyph);
 
-    function GroupRow({ row, t, view, onToggle, onMenu, dragHandlers }) {
-      const Icon = row.type === 'wgroup' ? IconFolders : IconMessages;
+    function GroupRow({ row, t, view, indent, showCounts, onToggle, onMenu, dragHandlers }) {
+      const Icon = row.type === 'wgroup' ? IconWorkspaceTreeOutlineRegular : IconQueueOutlineRegular;
       return h(
         'div',
         {
           className: 'sbg-row',
           'data-row-key': row.key,
           role: 'treeitem',
+          'data-container': 'true',
           'aria-expanded': row.expanded,
           'aria-level': row.depth + 1,
-          style: { paddingLeft: 6 + row.depth * INDENT_PX },
+          style: { paddingLeft: 6 + row.depth * indent },
           onClick: onToggle,
           onContextMenu: (e) => { e.preventDefault(); onMenu(e); },
           'data-droptarget': view.dropKey === row.key && view.dropValid,
@@ -1096,17 +1083,17 @@ window.__ModuleLoader__.load({
           draggable: true,
           ...dragHandlers,
         },
-        h('span', { className: 'sbg-chevron', 'data-open': row.expanded, 'aria-hidden': true }, h(IconChevron, { size: 12 })),
+        h('span', { className: 'sbg-chevron', 'data-open': row.expanded, 'aria-hidden': true }, h(IconTriangleRightFillRegular, { size: 14 })),
         h('span', { className: 'sbg-lead', 'data-active': row.containsCurrent }, h(Icon, { size: 16 })),
         h('span', { className: 'sbg-label sbg-group-label' }, row.name),
-        row.count > 0 ? h('span', { className: 'sbg-count' }, String(row.count)) : null,
+        showCounts && row.count > 0 ? h('span', { className: 'sbg-count' }, String(row.count)) : null,
         h(Actions, null,
-          iconButton({ 'aria-label': `${t('aria.more')}: ${row.name}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsis, { size: 14 })),
+          iconButton({ 'aria-label': `${t('aria.more')}: ${row.name}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsisOutlineRegular, { size: 16 })),
         ),
       );
     }
 
-    function WorkspaceRow({ row, t, view, onToggle, onMenu, onNewSession, dragHandlers }) {
+    function WorkspaceRow({ row, t, view, indent, showCounts, onToggle, onMenu, onNewSession, dragHandlers }) {
       const isUngrouped = row.id === '';
       return h(
         'div',
@@ -1114,9 +1101,10 @@ window.__ModuleLoader__.load({
           className: 'sbg-row',
           'data-row-key': row.key,
           role: 'treeitem',
+          'data-container': 'true',
           'aria-expanded': row.expanded,
           'aria-level': row.depth + 1,
-          style: { paddingLeft: 6 + row.depth * INDENT_PX },
+          style: { paddingLeft: 6 + row.depth * indent },
           onClick: onToggle,
           onContextMenu: (e) => { if (isUngrouped) return; e.preventDefault(); onMenu(e); },
           'data-droptarget': view.dropKey === row.key && view.dropValid,
@@ -1124,22 +1112,22 @@ window.__ModuleLoader__.load({
           draggable: !isUngrouped,
           ...dragHandlers,
         },
-        h('span', { className: 'sbg-chevron', 'data-open': row.expanded, 'aria-hidden': true }, h(IconChevron, { size: 12 })),
-        h('span', { className: 'sbg-lead', 'data-active': row.containsCurrent, title: row.path ?? undefined }, h(row.expanded ? IconFolderOpen : IconFolder, { size: 16 })),
+        h('span', { className: 'sbg-chevron', 'data-open': row.expanded, 'aria-hidden': true }, h(IconTriangleRightFillRegular, { size: 14 })),
+        h('span', { className: 'sbg-lead', 'data-active': row.containsCurrent, title: row.path ?? undefined }, h(row.expanded ? IconFolderOpenRegular : IconFolderCloseRegular, { size: 16 })),
         h('span', { className: 'sbg-label sbg-group-label', title: row.path ?? undefined }, row.label),
-        row.count > 0 ? h('span', { className: 'sbg-count' }, String(row.count)) : null,
+        showCounts && row.count > 0 ? h('span', { className: 'sbg-count' }, String(row.count)) : null,
         h(Actions, null,
           !isUngrouped && onNewSession !== undefined
-            ? iconButton({ 'aria-label': `${t('group.newSession')}: ${row.label}`, title: t('group.newSession'), onClick: (e) => { e.stopPropagation(); onNewSession(); } }, h(IconNewChat, { size: 14 }))
+            ? iconButton({ 'aria-label': `${t('group.newSession')}: ${row.label}`, title: t('group.newSession'), onClick: (e) => { e.stopPropagation(); onNewSession(); } }, h(IconNewChatOutlineRegular, { size: 14 }))
             : null,
           !isUngrouped
-            ? iconButton({ 'aria-label': `${t('aria.more')}: ${row.label}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsis, { size: 14 }))
+            ? iconButton({ 'aria-label': `${t('aria.more')}: ${row.label}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsisOutlineRegular, { size: 16 }))
             : null,
         ),
       );
     }
 
-    function SessionRow({ row, t, current, view, onOpen, onMenu, onTogglePin, onArchive, dragHandlers }) {
+    function SessionRow({ row, t, current, view, indent, onOpen, onMenu, onTogglePin, onArchive, dragHandlers }) {
       const statusText = row.status.pending !== null
         ? pendingLabel(row.status.pending, t)
         : row.status.running
@@ -1157,7 +1145,7 @@ window.__ModuleLoader__.load({
           'aria-level': row.depth + 1,
           'aria-selected': current === row.id,
           tabIndex: 0,
-          style: { paddingLeft: 6 + row.depth * INDENT_PX },
+          style: { paddingLeft: 6 + row.depth * indent },
           'data-selected': current === row.id,
           'data-archived': row.archived,
           'data-blank': row.blank,
@@ -1170,22 +1158,28 @@ window.__ModuleLoader__.load({
           ...dragHandlers,
         },
         h('span', { className: 'sbg-chevron', 'data-leaf': true }, null),
-        h('span', { className: 'sbg-lead' }, dotKind !== undefined ? h('span', { className: 'sbg-dot', 'data-kind': dotKind, title: statusText }) : null),
+        h(
+          'span',
+          { className: 'sbg-lead' },
+          dotKind !== undefined
+            ? h('span', { title: statusText, style: { display: 'flex' } }, h(StateDot, { state: STATUS_DOT[dotKind] }))
+            : null,
+        ),
         h('span', { className: 'sbg-label', title: row.displayTitle }, row.blank ? t('group.newSession') : row.displayTitle === '' ? t('session.untitled') : row.displayTitle),
         row.archived ? h('span', { className: 'sbg-count' }, t('session.archived')) : null,
         h('span', { className: 'sbg-time' }, relativeTime(row.updatedAt, view.now, t)),
         h(Actions, null,
           row.archived
-            ? h('span', { key: 'arch', className: 'sbg-mark', title: t('session.archived') }, h(IconArchive, { size: 13 }))
+            ? h('span', { key: 'arch', className: 'sbg-mark', title: t('session.archived') }, h(IconArchiveOutlineRegular, { size: 14 }))
             : [
-                row.pinned ? h('span', { key: 'pinm', className: 'sbg-mark', title: t('session.pinned'), style: { marginRight: 2 } }, h(IconPinFilled, { size: 13 })) : null,
+                row.pinned ? h('span', { key: 'pinm', className: 'sbg-mark', title: t('session.pinned'), style: { marginRight: 2 } }, h(IconPinFillRegular, { size: 14 })) : null,
                 onTogglePin !== undefined
-                  ? iconButton({ key: 'pin', 'aria-label': t('session.pinned'), title: t('session.pinned'), onClick: (e) => { e.stopPropagation(); onTogglePin(); } }, h(row.pinned ? IconPin : IconPinFilled, { size: 13 }))
+                  ? iconButton({ key: 'pin', 'aria-label': t('session.pinned'), title: t('session.pinned'), onClick: (e) => { e.stopPropagation(); onTogglePin(); } }, h(row.pinned ? IconPinOutlineRegular : IconPinFillRegular, { size: 14 }))
                   : null,
                 onArchive !== undefined
-                  ? iconButton({ key: 'arch', 'aria-label': t('session.archived'), title: t('session.archived'), onClick: (e) => { e.stopPropagation(); onArchive(); } }, h(IconArchive, { size: 13 }))
+                  ? iconButton({ key: 'arch', 'aria-label': t('session.archived'), title: t('session.archived'), onClick: (e) => { e.stopPropagation(); onArchive(); } }, h(IconArchiveOutlineRegular, { size: 14 }))
                   : null,
-                iconButton({ key: 'more', 'aria-label': `${t('aria.more')}: ${row.displayTitle}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsis, { size: 14 })),
+                iconButton({ key: 'more', 'aria-label': `${t('aria.more')}: ${row.displayTitle}`, title: t('aria.more'), 'aria-haspopup': 'menu', onClick: (e) => { e.stopPropagation(); onMenu(e); } }, h(IconEllipsisOutlineRegular, { size: 16 })),
               ],
         ),
       );
@@ -1207,7 +1201,7 @@ window.__ModuleLoader__.load({
         {
           id: 'sbg:subgroup',
           label: t('menu.group.createChild'),
-          glyph: h(group.kind === 'workspace' ? IconFolders : IconMessages, { size: 15 }),
+          glyph: h(group.kind === 'workspace' ? IconWorkspaceTreeOutlineRegular : IconQueueOutlineRegular, { size: 16 }),
           run: () =>
             face.dialogs.openName({
               title: t('dialog.name.create'),
@@ -1218,7 +1212,7 @@ window.__ModuleLoader__.load({
         {
           id: 'sbg:rename',
           label: t('menu.rename'),
-          glyph: h(IconEdit, { size: 15 }),
+          glyph: h(IconEditOutlineRegular, { size: 16 }),
           run: () => face.dialogs.openName({ title: t('dialog.name.rename'), initial: group.name, commit: (name) => face.groups.apply([{ op: 'group.rename', id: groupId, name }]) }),
         },
       ];
@@ -1226,7 +1220,7 @@ window.__ModuleLoader__.load({
         rows.push({
           id: 'sbg:move',
           label: t('menu.group.submenu'),
-          glyph: h(IconFolders, { size: 15 }),
+          glyph: h(IconWorkspaceTreeOutlineRegular, { size: 16 }),
           children: [
             ...(group.parent !== null ? [{ id: 'sbg:move:root', label: t('menu.group.remove'), run: () => face.groups.apply([{ op: 'group.move', id: groupId, parent: null }]).catch(() => {}) }] : []),
             ...moveTargets.map((target) => ({
@@ -1242,7 +1236,7 @@ window.__ModuleLoader__.load({
         id: 'sbg:delete',
         label: t('menu.delete'),
         danger: true,
-        glyph: h(IconTrash, { size: 15 }),
+        glyph: h(IconTrashOutlineRegular, { size: 16 }),
         run: () =>
           face.dialogs.openGroupDelete({
             name: group.name,
@@ -1269,6 +1263,13 @@ window.__ModuleLoader__.load({
     function makeGroupedBrowser(face) {
       return function GroupedBrowser(props) {
         const { wide, expandSidebar, useSessions, useWorkspaces, useSessionStatus, usePanelInfo, renderSlot, t } = props;
+        // The renderer hands `renderSlot` only to an entry that declares the
+        // child slots itself. The directory-flow seat belongs to the shipped
+        // browser entry (which stays registered), so a shadowing entry receives
+        // no binding here: calling it crashed the whole entry and the renderer
+        // fell back to the shipped panel. Prefer the seat when a renderer does
+        // provide it, otherwise drive the public picker RPC directly.
+        const sharedDirectoryFlow = typeof renderSlot === 'function';
         const list = useSessions((s) => s);
         const workspacesSnap = useWorkspaces((s) => s);
         const statuses = useSessionStatus((s) => s);
@@ -1276,6 +1277,7 @@ window.__ModuleLoader__.load({
 
         const groupsSnap = useStore(face.groups.store);
         const directoryFlowReady = useStore(face.directoryFlow);
+        const prefs = useStore(prefsStore);
 
         const [view, setView] = useState(() => ({
           wgroups: {},
@@ -1345,6 +1347,34 @@ window.__ModuleLoader__.load({
           },
           [face],
         );
+
+        /**
+         * Add a workspace. With a seat binding the shipped flow renders the
+         * picker; without one (the normal case for a shadowing entry) call the
+         * same public RPC the seat's native occupant calls and create the
+         * workspace from the returned path.
+         */
+        const addWorkspace = useCallback(async () => {
+          if (addBusy) return;
+          if (sharedDirectoryFlow) {
+            setAddOpen(true);
+            return;
+          }
+          if (typeof face.uiWorkspace?.pickDirectory !== 'function') {
+            notify(t('toast.pickerUnavailable'), 'error');
+            return;
+          }
+          setAddBusy(true);
+          try {
+            const pickedPath = await face.uiWorkspace.pickDirectory();
+            if (pickedPath === null || pickedPath === undefined || pickedPath === '') return;
+            await face.workspaces.create({ path: pickedPath });
+          } catch (cause) {
+            notify(String(cause?.message ?? cause), 'error');
+          } finally {
+            setAddBusy(false);
+          }
+        }, [addBusy, face, sharedDirectoryFlow, t]);
 
         const openSession = useCallback(
           (sessionId) => {
@@ -1521,7 +1551,7 @@ window.__ModuleLoader__.load({
                       openSession(entry.id);
                     },
                   },
-                  h('span', { className: 'sbg-lead' }, h(IconSearch, { size: 13 })),
+                  h('span', { className: 'sbg-lead' }, h(IconSearchOutlineRegular, { size: 16 })),
                   h('span', { className: 'sbg-label' }, entry.row.displayTitle === '' ? t('session.untitled') : entry.row.displayTitle),
                   entry.ws !== undefined ? h('span', { className: 'sbg-count' }, entry.ws.title) : null,
                   entry.snippet !== undefined ? h('span', { className: 'sbg-time', title: entry.snippet }, entry.snippet.slice(0, 40)) : null,
@@ -1534,6 +1564,8 @@ window.__ModuleLoader__.load({
             row,
             t,
             view: { ...dropInfo, now },
+            indent: prefs.indent,
+            showCounts: prefs.showCounts,
           };
           const groupDrag = { onDragStart: startDrag(row.type, row.id), onDragOver: dragOver(row), onDrop: drop(row), onDragEnd: dragEnd };
           if (row.type === 'wgroup') {
@@ -1579,11 +1611,11 @@ window.__ModuleLoader__.load({
           { className: 'sbg-root' },
           h('div', { className: 'sbg-header' },
             h('span', { className: 'sbg-title' }, t('header.title')),
-            headerButton({ 'aria-label': t('header.search'), title: t('header.search'), 'aria-expanded': view.searchOpen, onClick: () => { if (!wide) expandSidebar?.(); setView((v) => ({ ...v, searchOpen: !v.searchOpen, query: '' })); } }, h(IconSearch, { size: 15 })),
-            headerButton({ 'aria-label': t('header.view'), title: t('header.view'), onClick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openViewMenu({ x: r.right, y: r.bottom + 4 }); } }, h(IconSliders, { size: 15 })),
-            headerButton({ 'aria-label': t('header.addGroup'), title: t('header.addGroup'), onClick: () => face.dialogs.openName({ title: t('dialog.name.create'), initial: '', commit: (name) => face.groups.apply([{ op: 'group.create', id: mintId(), name, kind: 'workspace' }]) }) }, h(IconFolders, { size: 15 })),
+            headerButton({ 'aria-label': t('header.search'), title: t('header.search'), 'aria-expanded': view.searchOpen, onClick: () => { if (!wide) expandSidebar?.(); setView((v) => ({ ...v, searchOpen: !v.searchOpen, query: '' })); } }, h(IconSearchOutlineRegular, { size: 18 })),
+            headerButton({ 'aria-label': t('header.view'), title: t('header.view'), onClick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openViewMenu({ x: r.right, y: r.bottom + 4 }); } }, h(IconSlidersTwoOutlineRegular, { size: 16 })),
+            headerButton({ 'aria-label': t('header.addGroup'), title: t('header.addGroup'), onClick: () => face.dialogs.openName({ title: t('dialog.name.create'), initial: '', commit: (name) => face.groups.apply([{ op: 'group.create', id: mintId(), name, kind: 'workspace' }]) }) }, h(IconWorkspaceTreeOutlineRegular, { size: 16 })),
             directoryFlowReady
-              ? headerButton({ 'aria-label': t('header.addWorkspace'), title: t('header.addWorkspace'), disabled: addBusy, onClick: () => setAddOpen(true) }, h(IconPlus, { size: 15 }))
+              ? headerButton({ 'aria-label': t('header.addWorkspace'), title: t('header.addWorkspace'), disabled: addBusy, onClick: () => { void addWorkspace(); } }, h(IconProjectAddOutlineRegular, { size: 16 }))
               : null,
           ),
           view.searchOpen
@@ -1616,7 +1648,7 @@ window.__ModuleLoader__.load({
                     ),
           ),
           drag !== null ? h('div', { className: 'sbg-dropstrip', onDragOver: (e) => e.preventDefault(), onDrop: dropRoot, onClick: dropRoot }, t('drop.ungroup')) : null,
-          directoryFlowReady
+          sharedDirectoryFlow && directoryFlowReady
             ? renderSlot('sidebar.workspaces.directoryFlow', {
                 open: addOpen,
                 busy: addBusy,
@@ -1650,27 +1682,12 @@ window.__ModuleLoader__.load({
     //#endregion
 
     //#region settings section
-    /** Switch control copied from the host primitive's markup under the plugin prefix. */
-    function Switch({ on, busy, label, onChange }) {
-      return h(
-        'button',
-        {
-          type: 'button',
-          role: 'switch',
-          'aria-checked': on,
-          'aria-label': label,
-          disabled: busy === true,
-          className: 'sbg-switch',
-          onClick: () => onChange(!on),
-        },
-        h('span', { className: 'sbg-thumb' }),
-      );
-    }
 
     function makeSettingsSection(face) {
       return function SettingsSection({ t }) {
         const groupsSnap = useStore(face.groups.store);
         const enabled = useStore(enabledStore);
+        const prefs = useStore(prefsStore);
         const [cleanupState, setCleanupState] = useState({ busy: false, message: undefined });
 
         useEffect(() => {
@@ -1715,7 +1732,29 @@ window.__ModuleLoader__.load({
               h('div', null, t('settings.enabled')),
               h('div', { className: 'sbg-set-hint' }, t('settings.enabled.hint')),
             ),
-            h(Switch, { on: enabled, label: t('settings.enabled'), onChange: (next) => enabledStore.set(next) }),
+            h(Switch, { checked: enabled, label: t('settings.enabled'), onChange: (next) => enabledStore.set(next) }),
+          ),
+          h('div', { className: 'sbg-set-row' },
+            h('div', { className: 'sbg-set-main' },
+              h('div', null, t('settings.indent')),
+              h('div', { className: 'sbg-set-hint' }, t('settings.indent.hint')),
+            ),
+            h('select',
+              {
+                className: 'sbg-set-select',
+                'aria-label': t('settings.indent'),
+                value: String(prefs.indent),
+                onChange: (e) => prefsStore.set({ indent: Number(e.target.value) }),
+              },
+              INDENT_CHOICES.map((px) => h('option', { key: px, value: String(px) }, `${px} px`)),
+            ),
+          ),
+          h('div', { className: 'sbg-set-row' },
+            h('div', { className: 'sbg-set-main' },
+              h('div', null, t('settings.counts')),
+              h('div', { className: 'sbg-set-hint' }, t('settings.counts.hint')),
+            ),
+            h(Switch, { checked: prefs.showCounts, label: t('settings.counts'), onChange: (next) => prefsStore.set({ showCounts: next }) }),
           ),
           h('div', { className: 'sbg-set-main' },
             h('div', null, t('settings.stats', { groups: groupCount, links: linkCount })),
@@ -1741,8 +1780,8 @@ window.__ModuleLoader__.load({
         const gid = snap.state?.membership?.[SESSION_PREFIX + sessionId];
         const group = gid !== undefined ? snap.state?.groups?.[gid] : undefined;
         if (group === undefined) return null;
-        const Icon = group.kind === 'workspace' ? IconFolders : IconMessages;
-        return h('span', { className: 'sbg-mark', title: group.name, style: { marginRight: 4 } }, h(Icon, { size: 13 }));
+        const Icon = group.kind === 'workspace' ? IconWorkspaceTreeOutlineRegular : IconQueueOutlineRegular;
+        return h('span', { className: 'sbg-mark', title: group.name, style: { marginRight: 4 } }, h(Icon, { size: 14 }));
       };
     }
     //#endregion
@@ -1866,8 +1905,10 @@ window.__ModuleLoader__.load({
                     // renders the slot, the shipped browser entry stays registered
                     // and keeps declaring its seats (directoryFlow, row seats), and
                     // re-declaring them would fail the registry's duplicate check.
-                    // renderSlot resolves the seats by name, so occupants (the
-                    // directory picker, the schedule clock) keep working.
+                    // Those seats keep their occupants registered (the schedule
+                    // clock, the directory picker), but `renderSlot` is bound to the
+                    // declaring entry's children and is NOT passed to this shadow
+                    // entry — see `sharedDirectoryFlow` in the browser.
                   },
                   makeGroupedBrowser(face),
                 ),
@@ -1914,8 +1955,8 @@ window.__ModuleLoader__.load({
 
         // Menu glyphs for our contributions in the shared popup.
         ctx.slots.inject('contextMenu.icon', function* () {
-          yield slots.register({ name: 'contextMenu.icon', key: 'sidebar-groups.wgroup' }, IconFolders);
-          yield slots.register({ name: 'contextMenu.icon', key: 'sidebar-groups.sgroup' }, IconMessages);
+          yield slots.register({ name: 'contextMenu.icon', key: 'sidebar-groups.wgroup' }, IconWorkspaceTreeOutlineRegular);
+          yield slots.register({ name: 'contextMenu.icon', key: 'sidebar-groups.sgroup' }, IconQueueOutlineRegular);
         });
 
         /** Session groups available for one session (its workspace scope). */
@@ -1933,21 +1974,24 @@ window.__ModuleLoader__.load({
             id: 'sidebar-groups.session-group',
             target: 'session',
             order: 640,
-            observe: (target) => [groups.store, workspaces.list],
-            resolve: (target) => {
-              const { choices, current, scope } = sessionGroupChoices(target.value.sessionId);
+            observe: () => [groups.store, workspaces.list],
+            // The registry hands `resolve` the captured target VALUE
+            // (`{ sessionId, displayTitle }`), not the `{ kind, value }` wrapper.
+            resolve: (value) => {
+              const sessionId = value.sessionId;
+              const { choices, current, scope } = sessionGroupChoices(sessionId);
               const children = choices.map((group) => ({
                 id: `assign:${group.id}`,
                 label: group.name,
                 icon: { key: 'sidebar-groups.sgroup' },
                 disabled: current === group.id,
-                run: () => groups.apply([{ op: 'member.assign', key: SESSION_PREFIX + target.value.sessionId, group: group.id }]).catch(() => {}),
+                run: () => groups.apply([{ op: 'member.assign', key: SESSION_PREFIX + sessionId, group: group.id }]).catch(() => {}),
               }));
               if (current !== null) {
                 children.push({
                   id: 'ungroup',
                   label: t('menu.group.remove'),
-                  run: () => groups.apply([{ op: 'member.unassign', key: SESSION_PREFIX + target.value.sessionId }]).catch(() => {}),
+                  run: () => groups.apply([{ op: 'member.unassign', key: SESSION_PREFIX + sessionId }]).catch(() => {}),
                 });
               }
               children.push({
@@ -1959,7 +2003,7 @@ window.__ModuleLoader__.load({
                     initial: '',
                     commit: (name) => {
                       const id = mintId();
-                      return groups.apply([{ op: 'group.create', id, name, kind: 'session', scope }, { op: 'member.assign', key: SESSION_PREFIX + target.value.sessionId, group: id }]);
+                      return groups.apply([{ op: 'group.create', id, name, kind: 'session', scope }, { op: 'member.assign', key: SESSION_PREFIX + sessionId, group: id }]);
                     },
                   }),
               });
@@ -1975,22 +2019,24 @@ window.__ModuleLoader__.load({
             target: 'workspace',
             order: 640,
             observe: () => [groups.store],
-            resolve: (target) => {
+            // Same value-shape contract as the session provider above.
+            resolve: (value) => {
+              const workspaceId = value.workspaceId;
               const state = groups.store.getSnapshot().state ?? { groups: {}, membership: {} };
               const choices = groupChildren(state, 'workspace', '', null).map((id) => state.groups[id]);
-              const current = state.membership?.[WORKSPACE_PREFIX + target.value.workspaceId] ?? null;
+              const current = state.membership?.[WORKSPACE_PREFIX + workspaceId] ?? null;
               const children = choices.map((group) => ({
                 id: `assign:${group.id}`,
                 label: group.name,
                 icon: { key: 'sidebar-groups.wgroup' },
                 disabled: current === group.id,
-                run: () => groups.apply([{ op: 'member.assign', key: WORKSPACE_PREFIX + target.value.workspaceId, group: group.id }]).catch(() => {}),
+                run: () => groups.apply([{ op: 'member.assign', key: WORKSPACE_PREFIX + workspaceId, group: group.id }]).catch(() => {}),
               }));
               if (current !== null) {
                 children.push({
                   id: 'ungroup',
                   label: t('menu.group.remove'),
-                  run: () => groups.apply([{ op: 'member.unassign', key: WORKSPACE_PREFIX + target.value.workspaceId }]).catch(() => {}),
+                  run: () => groups.apply([{ op: 'member.unassign', key: WORKSPACE_PREFIX + workspaceId }]).catch(() => {}),
                 });
               }
               children.push({
@@ -2002,7 +2048,7 @@ window.__ModuleLoader__.load({
                     initial: '',
                     commit: (name) => {
                       const id = mintId();
-                      return groups.apply([{ op: 'group.create', id, name, kind: 'workspace' }, { op: 'member.assign', key: WORKSPACE_PREFIX + target.value.workspaceId, group: id }]);
+                      return groups.apply([{ op: 'group.create', id, name, kind: 'workspace' }, { op: 'member.assign', key: WORKSPACE_PREFIX + workspaceId, group: id }]);
                     },
                   }),
               });
@@ -2016,7 +2062,7 @@ window.__ModuleLoader__.load({
         ctx.slots.inject('settings.section', () =>
           slots.register({ name: 'settings.section', id: 'sidebar-groups', order: 26, label: () => t('settings.nav'), locale: NS }, makeSettingsSection(face)),
         );
-        ctx.slots.inject('settings.section.icon', () => slots.register({ name: 'settings.section.icon', id: 'sidebar-groups' }, IconFolders));
+        ctx.slots.inject('settings.section.icon', () => slots.register({ name: 'settings.section.icon', id: 'sidebar-groups' }, IconWorkspaceTreeOutlineRegular));
       },
     };
     //#endregion
