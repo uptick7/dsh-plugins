@@ -98,7 +98,7 @@ The file never touches session titles, workspace titles, or directories: deletin
 
 ## How it hooks in
 
-- Registers a component into the `sidebar.workspaces` single slot (declared by the sidebar shell, filled by the shipped `ui-workspace` browser); a dynamically registered entry wins that slot, and the plugin re-declares the shipped browser's child seats so other occupants (e.g. the schedule clock) keep working.
+- Registers a component into the `sidebar.workspaces` single slot (declared by the sidebar shell, filled by the shipped `ui-workspace` browser); a dynamically registered entry wins that slot. Shadowing changes only who renders the slot: the shipped browser entry stays registered and keeps declaring its child seats, so occupants (the schedule clock, the directory-picking hole) keep working. The plugin declares no seats of its own — the registry rejects duplicate declarations.
 - Everything else is public API: `ctx.sessions`, `ctx.workspaces`, `ctx.uiWorkspace`, `ctx.uiSession`, `ctx.remoteAccess`, `ctx.contextMenus`, `ctx.locale`, `shell.overlay`, `settings.section`.
 
 ## Limitations
@@ -114,6 +114,7 @@ The file never touches session titles, workspace titles, or directories: deletin
 cd sidebar-groups
 npm test        # node --test; host model and routes are covered
 npm run check   # syntax check
+node dev-activation-harness.js  # materialize client.js with stubs and run apply() to debug boot failures
 ```
 
 `groups-ops.js` is the pure op model (validation, application, orphan detection) shared by the Host half and the tests; `client.js` is self-contained and imports nothing but React, per the repo's client-plugin convention.

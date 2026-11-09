@@ -15,17 +15,16 @@ test('client module declares the loader entry under the package id', () => {
   assert.match(clientSource, /id: '@uptick7\/dsh-sidebar-groups'/);
 });
 
-test('client replaces the shipped browser and re-declares its child seats', () => {
+test('client replaces the shipped browser without re-declaring its seats', () => {
   assert.match(clientSource, /'sidebar\.workspaces'/);
-  for (const seat of [
-    'sidebar.workspaces.directoryFlow',
-    'sidebar.workspaces.session.row.action',
-    'sidebar.session.row.leading',
-    'sidebar.session.row.trailing',
-    'sidebar.session.row.hover',
-  ]) {
-    assert.match(clientSource, new RegExp(`'${seat.replace(/\./g, '\\.')}'`), `missing seat ${seat}`);
-  }
+  // The shipped browser entry stays registered (shadowed) and keeps declaring the
+  // seats; re-declaring them fails the registry's duplicate check at activation.
+  const registration = clientSource.slice(clientSource.indexOf("name: 'sidebar.workspaces'"));
+  const spec = registration.slice(0, registration.indexOf('makeGroupedBrowser'));
+  assert.doesNotMatch(spec, /children:\s*{/, 'registration must not declare children');
+  // A single slot rejects two entries at the same priority: the grouped browser
+  // must shadow the shipped one (priority 0) with a lower priority (lowest renders).
+  assert.match(spec, /priority:\s*-1/, 'registration must shadow with priority -1');
 });
 
 test('client registers settings section, overlays, and context menu contributions', () => {

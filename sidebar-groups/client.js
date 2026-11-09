@@ -1833,15 +1833,16 @@ window.__ModuleLoader__.load({
                   name: 'sidebar.workspaces',
                   id: 'sidebar-groups',
                   locale: NS,
-                  // Re-declare the shipped browser's child seats: shadowing collapses
-                  // its declarations, and every occupant re-registers through inject().
-                  children: {
-                    'sidebar.workspaces.directoryFlow': { kind: 'single', scope: 'root' },
-                    'sidebar.workspaces.session.row.action': { kind: 'list', scope: 'root' },
-                    'sidebar.session.row.leading': { kind: 'list', scope: 'root', inline: true },
-                    'sidebar.session.row.trailing': { kind: 'list', scope: 'root', inline: true },
-                    'sidebar.session.row.hover': { kind: 'list', scope: 'root' },
-                  },
+                  // A single slot rejects two entries at the same priority; the
+                  // lowest priority renders, so -1 shadows the shipped browser
+                  // (priority 0) and unregistering brings it back.
+                  priority: -1,
+                  // No children declarations here: shadowing only changes who
+                  // renders the slot, the shipped browser entry stays registered
+                  // and keeps declaring its seats (directoryFlow, row seats), and
+                  // re-declaring them would fail the registry's duplicate check.
+                  // renderSlot resolves the seats by name, so occupants (the
+                  // directory picker, the schedule clock) keep working.
                 },
                 makeGroupedBrowser(face),
               ),
