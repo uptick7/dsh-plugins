@@ -1,0 +1,73 @@
+{
+  "name": "@uptick7/dsh-sidebar-groups",
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "User-defined UI groups for sidebar workspaces and their sessions: grouped tree replaces the Workspaces panel, drag-and-drop membership, context menus; groups are keyed by stable ids and stored host-side.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "plugin",
+    "sidebar",
+    "sessions",
+    "workspaces",
+    "groups"
+  ],
+  "author": {
+    "name": "uptick7",
+    "url": "https://github.com/uptick7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uptick7/dsh-plugins.git",
+    "directory": "sidebar-groups"
+  },
+  "homepage": "https://github.com/uptick7/dsh-plugins/tree/main/sidebar-groups#readme",
+  "bugs": "https://github.com/uptick7/dsh-plugins/issues",
+  "engines": {
+    "node": ">=24",
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+  },
+  "scripts": {
+    "check": "node --check index.js && node --check groups-ops.js && node --check client.js",
+    "test": "node --test *.test.js",
+    "prepublishOnly": "npm run check"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./groups-ops": "./groups-ops.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "groups-ops.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "README.ru.md",
+    "LICENSE",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-context-menu"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

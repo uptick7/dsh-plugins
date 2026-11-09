@@ -10,6 +10,7 @@
 |---|---|---|---|
 | [message-edit](message-edit/) | [`@uptick7/dsh-message-edit`](https://www.npmjs.com/package/@uptick7/dsh-message-edit) | 1.5.1 | Правка отправленного сообщения «на месте»: исправленный текст заменяет предыдущий обмен в контексте той же сессии, сессия продолжается без fork. |
 | [commands-bridge](commands-bridge/) | [`@uptick7/dsh-commands-bridge`](https://www.npmjs.com/package/@uptick7/dsh-commands-bridge) | 1.0.0 | Мост markdown slash-команд: общие (`~/.agents/commands`), агентные (`~/.dsh/commands`) и проектные (`<cwd>/.agents/commands`) директории подключаются к реестру команд, страница Settings → Commands показывает описание, argument-hint и тумблеры. |
+| [sidebar-groups](sidebar-groups/) | [`@uptick7/dsh-sidebar-groups`](https://www.npmjs.com/package/@uptick7/dsh-sidebar-groups) | 1.0.0 | Пользовательские группы воркспейсов и сессий внутри каждого воркспейса: группированное дерево заменяет панель Workspaces, членство через drag-and-drop и контекстные меню, хранение на хосте по стабильным идентификаторам. |
 
 ## Установка
 

@@ -1,0 +1,4 @@
+- insert:
+    - id: sidebar-groups
+      name: '@uptick7/dsh-sidebar-groups'
+      config: {}

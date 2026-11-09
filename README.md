@@ -10,6 +10,7 @@ A collection of plugins for [DeepSeek Harness (DSH)](https://www.npmjs.com/packa
 |---|---|---|---|
 | [message-edit](message-edit/) | [`@uptick7/dsh-message-edit`](https://www.npmjs.com/package/@uptick7/dsh-message-edit) | 1.5.1 | Edit a sent user message in place: the edited text replaces the previous exchange in the same session's model context, and the session continues without a fork. |
 | [commands-bridge](commands-bridge/) | [`@uptick7/dsh-commands-bridge`](https://www.npmjs.com/package/@uptick7/dsh-commands-bridge) | 1.0.0 | Bridge markdown slash-commands from shared (`~/.agents/commands`), harness (`~/.dsh/commands`), and project (`<cwd>/.agents/commands`) directories into the command registry; a Settings → Commands page shows descriptions, argument hints, and enable toggles. |
+| [sidebar-groups](sidebar-groups/) | [`@uptick7/dsh-sidebar-groups`](https://www.npmjs.com/package/@uptick7/dsh-sidebar-groups) | 1.0.0 | User-defined UI groups for sidebar workspaces and for the sessions inside each workspace: a grouped tree replaces the Workspaces panel, with drag-and-drop membership, context menus, and host-side storage keyed by stable ids. |
 
 ## Installation
 

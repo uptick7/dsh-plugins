@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Sidebar groups",
+    "description": "User-defined UI groups for sidebar workspaces and their sessions, keyed by stable ids and stored host-side."
+  }
+}
